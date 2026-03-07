@@ -1,0 +1,405 @@
+# Plano de Implementação - Sistema Cesta Básica (Frontend Completo)
+
+## Visão Geral
+
+Sistema de gestão de vendas de cestas básicas com **3 perfis de usuário**:
+- **Gerente**: Controle total, dashboard, estoque, equipe, financeiro
+- **Vendedor/Entregador**: Venda presencial, cadastro de cliente, prestação de contas
+- **Cliente**: Loja online, compra, acompanhamento de pedido
+
+> [!IMPORTANT]
+> Backend será mockado com **localStorage**. Após aprovação das telas, integraremos com Supabase.
+
+---
+
+## Fluxo do Negócio
+
+```mermaid
+flowchart TB
+    subgraph Fornecedor
+        A[Compra Mensal<br>de Cestas]
+    end
+    
+    subgraph Gerente
+        B[Entrada de Estoque]
+        C[Dashboard]
+        D[Prestação de Contas]
+    end
+    
+    subgraph VendaOnline["Venda Online"]
+        E[Cliente acessa App]
+        F[Seleciona Modelo]
+        G[Pagamento Online]
+        H[Aguarda Entrega]
+    end
+    
+    subgraph VendaPresencial["Venda Presencial"]
+        I[Vendedor vai até cliente]
+        J[Cadastra Cliente]
+        K[Seleciona Pagamento]
+        L[Baixa Estoque]
+        M[Parcelas se A Prazo]
+    end
+    
+    subgraph Entrega
+        N[Atribuir Entregador]
+        O[GPS Tracking]
+        P[Confirmar Entrega]
+    end
+    
+    A --> B
+    B --> C
+    E --> F --> G --> N
+    I --> J --> K --> L
+    K --> M
+    N --> O --> P
+    L --> D
+    M --> D
+```
+
+---
+
+## Arquitetura de Arquivos
+
+### Arquivos Existentes a Modificar
+
+| Arquivo | Modificação |
+|---------|-------------|
+| [types.ts](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/types.ts) | Adicionar novos tipos: Customer, StockEntry, BasketModel, Delivery, Installment, DailyClosing, UserSession |
+| [store.ts](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/store.ts) | Adicionar dados iniciais mockados para todos os novos tipos |
+| [App.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/App.tsx) | Adicionar novas rotas/views e lógica de autenticação mock |
+| [components/Layout.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/components/Layout.tsx) | Menu dinâmico baseado no perfil do usuário |
+
+### Novos Arquivos a Criar
+
+| Arquivo | Descrição |
+|---------|-----------|
+| **views/LoginView.tsx** | Tela de login (mock com seleção de perfil) |
+| **views/StockEntryView.tsx** | Entrada de estoque do fornecedor |
+| **views/BasketModelsView.tsx** | Cadastro de modelos de cesta |
+| **views/CustomerStoreView.tsx** | Loja online para cliente |
+| **views/CustomerCartView.tsx** | Carrinho de compras |
+| **views/CustomerCheckoutView.tsx** | Checkout online |
+| **views/CustomerOrdersView.tsx** | Pedidos do cliente |
+| **views/PresentialSaleView.tsx** | Venda presencial (vendedor) |
+| **views/CustomerRegisterView.tsx** | Cadastro de cliente (vendedor) |
+| **views/InstallmentsView.tsx** | Gestão de parcelas a prazo |
+| **views/DailyClosingView.tsx** | Prestação de contas diária |
+| **views/ClosingApprovalView.tsx** | Aprovação de fechamento (gerente) |
+| **views/DeliveriesView.tsx** | Gestão de entregas |
+| **views/GpsTrackingView.tsx** | Mapa com GPS da equipe |
+| **views/ReceivablesView.tsx** | Valores a receber (gerente) |
+
+---
+
+## Detalhamento por Fase
+
+### Fase 1 - Modelos de Dados
+
+#### [MODIFY] [types.ts](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/types.ts)
+
+Novos tipos a adicionar:
+
+```typescript
+// Modelo de Cesta (Pequena, Grande, Big, Short...)
+export interface BasketModel {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  weight: string;
+  image: string;
+  active: boolean;
+}
+
+// Entrada de Estoque
+export interface StockEntry {
+  id: string;
+  basketModelId: string;
+  quantity: number;
+  unitCost: number;
+  supplier: string;
+  receivedAt: number;
+  createdBy: string;
+}
+
+// Cliente
+export interface Customer {
+  id: string;
+  name: string;
+  cpf: string;
+  phone: string;
+  address: string;
+  email?: string;
+  createdAt: number;
+  createdBy: string;
+}
+
+// Parcela
+export interface Installment {
+  id: string;
+  saleId: string;
+  number: number;
+  amount: number;
+  dueDate: number;
+  status: 'pending' | 'paid' | 'overdue';
+  paidAt?: number;
+  receivedBy?: string;
+}
+
+// Entrega
+export interface Delivery {
+  id: string;
+  saleId: string;
+  driverId?: string;
+  status: 'pending' | 'assigned' | 'in_route' | 'delivered' | 'problem';
+  assignedAt?: number;
+  deliveredAt?: number;
+  notes?: string;
+}
+
+// Fechamento Diário
+export interface DailyClosing {
+  id: string;
+  sellerId: string;
+  closingDate: number;
+  cashAmount: number;
+  cardAmount: number;
+  pixAmount: number;
+  installmentAmount: number;
+  salesIds: string[];
+  status: 'pending' | 'approved' | 'rejected';
+  approvedBy?: string;
+  notes?: string;
+}
+
+// Sessão do Usuário (mock)
+export interface UserSession {
+  id: string;
+  name: string;
+  role: 'gerente' | 'vendedor' | 'entregador' | 'cliente';
+  avatar?: string;
+}
+```
+
+---
+
+### Fase 2 - Gestão de Estoque
+
+#### [NEW] [StockEntryView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/StockEntryView.tsx)
+
+Tela para registrar chegada de cestas do fornecedor:
+- Selecionar modelo de cesta
+- Quantidade recebida
+- Custo unitário
+- Fornecedor
+- Data de recebimento
+
+#### [NEW] [BasketModelsView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/BasketModelsView.tsx)
+
+CRUD de modelos de cesta:
+- Nome, descrição, preço, peso, imagem
+- Ativar/Desativar modelo
+
+---
+
+### Fase 3 - Loja Online (Cliente)
+
+#### [NEW] [CustomerStoreView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/CustomerStoreView.tsx)
+
+Catálogo de cestas para o cliente:
+- Cards com modelos disponíveis
+- Botão "Adicionar ao Carrinho"
+- Estoque visível
+
+#### [NEW] [CustomerCartView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/CustomerCartView.tsx)
+
+Carrinho de compras:
+- Lista de itens
+- Alterar quantidade
+- Remover item
+- Total
+- Botão "Finalizar Compra"
+
+#### [NEW] [CustomerCheckoutView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/CustomerCheckoutView.tsx)
+
+Finalização do pedido online:
+- Confirmar endereço
+- Escolher forma de pagamento (PIX, Cartão, Na Entrega)
+- Resumo do pedido
+- Confirmar compra
+
+#### [NEW] [CustomerOrdersView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/CustomerOrdersView.tsx)
+
+Meus Pedidos:
+- Lista de pedidos com status
+- Detalhes do pedido
+- Rastreamento (link para GPS se disponível)
+
+---
+
+### Fase 4 - Venda Presencial
+
+#### [NEW] [CustomerRegisterView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/CustomerRegisterView.tsx)
+
+Cadastro de cliente pelo vendedor:
+- Nome completo (obrigatório)
+- CPF (obrigatório)
+- Telefone/WhatsApp (obrigatório)
+- Endereço completo (obrigatório)
+- Email (opcional)
+
+#### [NEW] [PresentialSaleView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/PresentialSaleView.tsx)
+
+Fluxo de venda presencial:
+1. Buscar/Cadastrar cliente
+2. Selecionar modelo de cesta
+3. Escolher forma de pagamento:
+   - Cartão (maquininha física)
+   - PIX (manual)
+   - A Prazo (define parcelas)
+4. Confirmar venda (baixa automática no estoque)
+
+#### [NEW] [InstallmentsView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/InstallmentsView.tsx)
+
+Gestão de parcelas:
+- Lista de parcelas pendentes/pagas/atrasadas
+- Filtro por cliente
+- Dar baixa em parcela
+- Ver histórico
+
+---
+
+### Fase 5 - Prestação de Contas
+
+#### [NEW] [DailyClosingView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/DailyClosingView.tsx)
+
+Fechamento diário do vendedor:
+- Lista de vendas do dia
+- Valores por forma de pagamento
+- Parcelas registradas
+- Botão "Enviar para Aprovação"
+
+#### [NEW] [ClosingApprovalView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/ClosingApprovalView.tsx)
+
+Aprovação pelo gerente:
+- Lista de fechamentos pendentes
+- Detalhes do fechamento
+- Aprovar ou Rejeitar
+- Histórico
+
+---
+
+### Fase 6 - Dashboard do Gerente
+
+#### [MODIFY] [Dashboard.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/Dashboard.tsx)
+
+Adicionar widgets:
+- Estoque atual por modelo
+- Vendas online do dia
+- Entregas pendentes
+- Mapa GPS da equipe
+- Valores a receber por vendedor
+- Fechamentos pendentes de aprovação
+
+---
+
+### Fase 7 - Entregas
+
+#### [NEW] [DeliveriesView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/DeliveriesView.tsx)
+
+Gestão de entregas:
+- Lista de entregas pendentes
+- Atribuir entregador
+- Alterar status
+- Ver detalhes da venda
+
+#### [NEW] [GpsTrackingView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/GpsTrackingView.tsx)
+
+Mapa com localização da equipe:
+- Mapa interativo (Leaflet)
+- Marcadores de vendedores/entregadores
+- Status de cada membro
+- Atualização simulada
+
+---
+
+### Fase 8 - Autenticação Mock
+
+#### [NEW] [LoginView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/views/LoginView.tsx)
+
+Login simulado:
+- Botões para escolher perfil (Gerente, Vendedor, Entregador, Cliente)
+- Salvar sessão no localStorage
+- Redirecionar para dashboard apropriado
+
+#### [MODIFY] [App.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/App.tsx)
+
+- Verificar sessão no localStorage
+- Renderizar telas baseado no perfil
+- Botão de logout
+
+---
+
+## Verificação
+
+### Testes via Browser
+
+Após implementação de cada fase, testarei manualmente no browser seguindo estes passos:
+
+**Fase 1-2 (Estoque):**
+1. Acessar como Gerente
+2. Ir em "Modelos de Cesta" e criar 3 modelos
+3. Ir em "Entrada de Estoque" e registrar 100 unidades de cada
+4. Verificar no Dashboard se estoque aparece
+
+**Fase 3 (Loja Online):**
+1. Fazer logout e entrar como Cliente
+2. Ver catálogo de cestas
+3. Adicionar ao carrinho
+4. Finalizar compra com PIX
+5. Ver em "Meus Pedidos"
+
+**Fase 4 (Venda Presencial):**
+1. Entrar como Vendedor
+2. Cadastrar novo cliente
+3. Fazer venda presencial a prazo (3 parcelas)
+4. Verificar baixa no estoque
+5. Ir em Parcelas e dar baixa em uma
+
+**Fase 5-6 (Prestação de Contas):**
+1. Como Vendedor, fazer fechamento diário
+2. Como Gerente, aprovar fechamento
+3. Verificar valores no Dashboard
+
+**Fase 7 (Entregas):**
+1. Como Gerente, ver entregas pendentes
+2. Atribuir entregador
+3. Como Entregador, marcar como entregue
+4. Verificar no mapa GPS
+
+---
+
+## Cronograma Estimado
+
+| Fase | Esforço |
+|------|---------|
+| Fase 1 - Modelos | 30 min |
+| Fase 2 - Estoque | 1 hora |
+| Fase 3 - Loja Online | 1.5 horas |
+| Fase 4 - Venda Presencial | 1.5 horas |
+| Fase 5 - Prestação de Contas | 1 hora |
+| Fase 6 - Dashboard | 1 hora |
+| Fase 7 - Entregas | 1 hora |
+| Fase 8 - Autenticação | 30 min |
+
+**Total estimado: ~8 horas**
+
+---
+
+## Próximos Passos
+
+1. ✅ Aprovar este plano
+2. Iniciar Fase 1 - Modelos de Dados
+3. Implementar sequencialmente cada fase
+4. Validar cada fase no browser antes de avançar

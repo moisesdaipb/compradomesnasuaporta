@@ -1,0 +1,7 @@
+{
+  "name": "Manager Dashboard - Cestas Básicas",
+  "description": "A comprehensive sales and inventory management system for food baskets with real-time tracking, local storage persistence, and checkout flows.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
