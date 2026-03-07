@@ -307,7 +307,9 @@ export type ViewState =
   | 'customer-orders'
   | 'customer-profile'
   | 'settings'
-  | 'app-config';
+  | 'app-config'
+  | 'forgot-password'
+  | 'reset-password';
 
 // Registro de Login
 export interface LoginLog {

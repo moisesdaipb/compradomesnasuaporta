@@ -7,14 +7,17 @@ interface LoginViewProps {
     onLogin: (session: UserSession) => void;
     onRegisterCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'createdBy'>) => Customer;
     settings?: AppSettings;
+    initialMode?: 'login' | 'register' | 'forgot-password' | 'reset-password';
 }
 
-const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterCustomer, settings }) => {
+const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterCustomer, settings, initialMode = 'login' }) => {
     const appName = settings?.appName || 'Cesta Básica na sua Casa';
     const appSubtitle = appName === 'Cesta Básica na sua Casa' ? '' : ''; // Subtitle is redundant with the full name
     const logoType = settings?.logoType || 'icon';
     const appLogo = settings?.appLogo || 'shopping_basket';
-    const [mode, setMode] = useState<'login' | 'register'>('login');
+    const [mode, setMode] = useState<'login' | 'register' | 'forgot-password' | 'reset-password'>(initialMode);
+    const [recoveryEmail, setRecoveryEmail] = useState('');
+    const [newPassword, setNewPassword] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -109,6 +112,58 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterCustomer, sett
         } catch (err: any) {
             console.error('handleLogin crash:', err);
             setError('Erro inesperado no login.');
+            setIsLoading(false);
+        }
+    };
+
+    const handleForgotPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        setIsLoading(true);
+
+        try {
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
+                redirectTo: window.location.origin + '/',
+            });
+
+            if (resetError) {
+                setError(resetError.message);
+            } else {
+                setSuccessMessage('E-mail de recuperação enviado! Verifique sua caixa de entrada.');
+                setTimeout(() => setMode('login'), 5000);
+            }
+        } catch (err) {
+            setError('Erro ao enviar e-mail de recuperação.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleResetPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        
+        if (newPassword.length < 6) {
+            setError('A senha deve ter pelo menos 6 caracteres.');
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const { error: updateError } = await supabase.auth.updateUser({
+                password: newPassword,
+            });
+
+            if (updateError) {
+                setError(updateError.message);
+            } else {
+                setSuccessMessage('Senha atualizada com sucesso! Você já pode entrar.');
+                setTimeout(() => setMode('login'), 3000);
+            }
+        } catch (err) {
+            setError('Erro ao atualizar senha.');
+        } finally {
             setIsLoading(false);
         }
     };
@@ -326,6 +381,15 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterCustomer, sett
                                             </span>
                                         </button>
                                     </div>
+                                    <div className="flex justify-end mt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setMode('forgot-password')}
+                                            className="text-xs font-bold text-primary hover:underline"
+                                        >
+                                            Esqueci minha senha
+                                        </button>
+                                    </div>
                                 </div>
                                 <button
                                     type="submit"
@@ -338,7 +402,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterCustomer, sett
                                     {isLoading ? 'Entrando...' : 'Entrar'}
                                 </button>
                             </form>
-                        ) : (
+                        ) : mode === 'register' ? (
                             <form onSubmit={handleRegister} className="space-y-4">
                                 <div>
                                     <label className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5 block">
@@ -413,6 +477,81 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterCustomer, sett
                                         {isLoading ? 'sync' : 'person_add'}
                                     </span>
                                     {isLoading ? 'Cadastrando...' : 'Criar Minha Conta'}
+                                </button>
+                            </form>
+                        ) : mode === 'forgot-password' ? (
+                            <form onSubmit={handleForgotPassword} className="space-y-4">
+                                <div>
+                                    <label className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5 block">
+                                        E-mail de Recuperação
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={recoveryEmail}
+                                        onChange={(e) => setRecoveryEmail(e.target.value)}
+                                        className="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 focus:ring-2 focus:ring-primary focus:border-transparent"
+                                        placeholder="seu@email.com"
+                                        required
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={isLoading}
+                                    className="w-full h-14 bg-primary hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
+                                >
+                                    <span className="material-symbols-outlined">
+                                        {isLoading ? 'sync' : 'mail'}
+                                    </span>
+                                    {isLoading ? 'Enviando...' : 'Enviar Link de Recuperação'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMode('login')}
+                                    className="w-full py-2 text-sm font-bold text-slate-400 hover:text-primary transition-colors"
+                                >
+                                    Voltar para o Login
+                                </button>
+                            </form>
+                        ) : (
+                            <form onSubmit={handleResetPassword} className="space-y-4">
+                                <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 mb-4">
+                                    <p className="text-xs text-primary font-medium text-center">
+                                        Crie uma nova senha segura para sua conta.
+                                    </p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5 block">
+                                        Nova Senha
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type={showPassword ? "text" : "password"}
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                            className="w-full h-12 pl-4 pr-12 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 focus:ring-2 focus:ring-primary focus:border-transparent"
+                                            placeholder="No mínimo 6 caracteres"
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-xl">
+                                                {showPassword ? 'visibility' : 'visibility_off'}
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={isLoading}
+                                    className="w-full h-14 bg-success hover:bg-green-600 disabled:opacity-50 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
+                                >
+                                    <span className="material-symbols-outlined">
+                                        {isLoading ? 'sync' : 'lock_reset'}
+                                    </span>
+                                    {isLoading ? 'Atualizando...' : 'Atualizar Senha'}
                                 </button>
                             </form>
                         )}

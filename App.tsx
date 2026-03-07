@@ -143,6 +143,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('dashboard');
 
   console.log('[App] State:', { isLoaded, sessionEmail: session?.email, view });
+  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register' | 'forgot-password' | 'reset-password'>('login');
 
   // App Data - Initialize settings from localStorage for instant branding
   const [appData, setAppData] = useState<AppState>(() => {
@@ -628,7 +629,11 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, supabaseSession) => {
       console.log('[App] Auth event change:', event, supabaseSession?.user?.email);
 
-      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && supabaseSession) {
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('[App] Auth event: PASSWORD_RECOVERY detected');
+        setAuthInitialMode('reset-password');
+        setView('login');
+      } else if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && supabaseSession) {
         // Prevent race condition: check if we already have this user logged in
         // FIX: Use loadSession() helper to avoid key mismatch
         const currentSession = loadSession();
@@ -1406,7 +1411,7 @@ const App: React.FC = () => {
   }
 
   if (!session) {
-    return <LoginView settings={appData.settings} onLogin={handleLogin} onRegisterCustomer={handleAddCustomer as any} />;
+    return <LoginView settings={appData.settings} onLogin={handleLogin} onRegisterCustomer={handleAddCustomer as any} initialMode={authInitialMode} />;
   }
 
   const renderContent = () => {
