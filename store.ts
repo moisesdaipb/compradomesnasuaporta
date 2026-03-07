@@ -252,44 +252,28 @@ export const upsertTeamMember = async (member: Partial<TeamMember>, token?: stri
     throw new Error(`Este ${conflict.field} já está atrelado a outro usuário (${conflict.name}).`);
   }
 
-  const mapped: any = {
-    name: member.name,
-    role: member.role,
-    phone: member.phone,
-    email: member.email,
-    cpf: member.cpf,
-    status: member.status || 'ativo',
-    commission_rate: member.commissionRate || 0,
-    base_salary: member.baseSalary || 0,
-  };
+  const memberId = member.id || crypto.randomUUID();
 
-  if (member.startDate) {
-    mapped.start_date = new Date(member.startDate).toISOString();
-  }
-
-  // Fresh client for the actual insert/update
-  const localSupabase = createClient(
-    (import.meta as any).env.VITE_SUPABASE_URL,
-    (import.meta as any).env.VITE_SUPABASE_ANON_KEY,
-    {
-      auth: { persistSession: false },
-      global: token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
-    }
-  );
-
+  // Use RPC to bypass RLS (SECURITY DEFINER function)
   try {
-    let query;
-    if (member.id) {
-      query = localSupabase.from('profiles').upsert({ id: member.id, ...mapped });
-    } else {
-      query = localSupabase.from('profiles').insert({ id: crypto.randomUUID(), ...mapped });
-    }
-
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('TIMEOUT: O salvamento do membro demorou mais de 30s.')), 30000)
     );
 
-    const { data, error } = await Promise.race([query.select(), timeoutPromise]) as any;
+    const rpcPromise = supabase.rpc('upsert_team_member', {
+      p_id: memberId,
+      p_name: member.name,
+      p_role: member.role,
+      p_phone: member.phone || null,
+      p_email: member.email || null,
+      p_cpf: member.cpf || null,
+      p_status: member.status || 'pendente',
+      p_commission_rate: member.commissionRate || 0,
+      p_base_salary: member.baseSalary || 0,
+      p_start_date: member.startDate ? new Date(member.startDate).toISOString() : new Date().toISOString(),
+    });
+
+    const { data, error } = await Promise.race([rpcPromise, timeoutPromise]) as any;
 
     console.log(`[store] upsertTeamMember finished in ${Date.now() - startTime}ms`);
 
@@ -297,7 +281,21 @@ export const upsertTeamMember = async (member: Partial<TeamMember>, token?: stri
       console.error('Error in upsertTeamMember:', error);
       throw error;
     }
-    return data?.[0];
+
+    // RPC returns JSONB, map it back to a TeamMember-like object
+    const row = data;
+    return {
+      id: row.id,
+      name: row.name,
+      role: row.role,
+      phone: row.phone,
+      email: row.email,
+      cpf: row.cpf || '',
+      status: row.status,
+      startDate: row.start_date ? new Date(row.start_date).getTime() : Date.now(),
+      commissionRate: row.commission_rate,
+      baseSalary: row.base_salary,
+    };
   } catch (err: any) {
     console.error('[store] upsertTeamMember Exception:', err);
     throw err;
