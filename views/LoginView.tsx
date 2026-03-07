@@ -116,10 +116,14 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, onRegisterCustomer, sett
     const handleGoogleLogin = async () => {
         setError('');
         try {
+            const redirectUrl = window.location.origin.endsWith('/') 
+                ? window.location.origin 
+                : window.location.origin + '/';
+                
             const { error: authError } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: window.location.origin,
+                    redirectTo: redirectUrl,
                 }
             });
 
