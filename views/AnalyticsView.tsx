@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { DailyClosing, ClosingStatus } from '../types';
 // Date utilities to avoid external dependency issues
 const formatDate = (date: Date) => {
     const y = date.getFullYear();
@@ -46,6 +47,7 @@ interface AnalyticsViewProps {
     sales: Sale[];
     installments: Installment[];
     deliveries: Delivery[];
+    dailyClosings: DailyClosing[];
     baskets: BasketModel[];
     stock: StockItem[];
     team: TeamMember[];
@@ -60,6 +62,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     sales,
     installments,
     deliveries,
+    dailyClosings,
     baskets,
     stock,
     team,
@@ -243,12 +246,26 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             }))
             .sort((a, b) => b.total - a.total);
 
+        // Unaccounted by sellers: sales that are NOT term AND NOT in any approved/pending closing
+        const approvedClosings = dailyClosings.filter(c => c.status === ClosingStatus.APPROVED || c.status === ClosingStatus.PENDING);
+        const closedSaleIds = new Set<string>();
+        approvedClosings.forEach(c => {
+            (c.salesIds || []).forEach(id => closedSaleIds.add(id));
+        });
+        const unaccountedBySellers = activeSales
+            .filter(s => s.paymentMethod !== PaymentMethod.TERM && !closedSaleIds.has(s.id))
+            .reduce((acc, s) => acc + s.total, 0);
+
+        // Total term (installment) sales pending
+        const totalTermPending = outstanding;
+
         return {
             totalRevenue, onlineSales, presencialSales, outstanding, overdue,
             paidAmount, overdueAmount, pendingFutureAmount, goalValue, goalPct,
-            lowStockCount, criticalStockCount, cityStats, sellerStats, topCustomers
+            lowStockCount, criticalStockCount, cityStats, sellerStats, topCustomers,
+            unaccountedBySellers, totalTermPending, cashSalesRevenue
         };
-    }, [filteredSales, filteredInstallments, goals, stock, team, customers]);
+    }, [filteredSales, filteredInstallments, goals, stock, team, customers, dailyClosings]);
 
     const latestSales = useMemo(() => {
         return [...filteredSales].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
@@ -275,6 +292,52 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     }, [filteredSales, filters.startDate]);
 
     const maxTrend = Math.max(...dailyMonthTrend.map(d => d.value), 1000);
+
+    // --- Installment Receivables Trend (for line chart with drill-down) ---
+    const [installmentChartDrilldown, setInstallmentChartDrilldown] = React.useState<{ level: 'month' | 'day'; selectedMonth: number | null; selectedYear: number | null }>({
+        level: 'month',
+        selectedMonth: null,
+        selectedYear: null
+    });
+
+    const installmentTrendData = useMemo(() => {
+        const pendingInst = installments.filter(i => i.status === InstallmentStatus.PENDING);
+        
+        if (installmentChartDrilldown.level === 'month') {
+            // Group by month — show last 12 months
+            const now = new Date();
+            const months: { label: string; month: number; year: number; value: number }[] = [];
+            for (let i = 11; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const m = d.getMonth();
+                const y = d.getFullYear();
+                const monthEnd = new Date(y, m + 1, 0, 23, 59, 59).getTime();
+                const monthStart = new Date(y, m, 1, 0, 0, 0).getTime();
+                const total = pendingInst
+                    .filter(inst => inst.dueDate >= monthStart && inst.dueDate <= monthEnd)
+                    .reduce((acc, inst) => acc + inst.amount, 0);
+                const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                months.push({ label: `${monthNames[m]}/${y.toString().slice(2)}`, month: m, year: y, value: total });
+            }
+            return months;
+        } else {
+            // Drill-down: show days of selected month
+            const m = installmentChartDrilldown.selectedMonth!;
+            const y = installmentChartDrilldown.selectedYear!;
+            const daysInMonth = new Date(y, m + 1, 0).getDate();
+            return Array.from({ length: daysInMonth }, (_, i) => {
+                const dayNum = i + 1;
+                const dayStart = new Date(y, m, dayNum, 0, 0, 0).getTime();
+                const dayEnd = new Date(y, m, dayNum, 23, 59, 59).getTime();
+                const total = pendingInst
+                    .filter(inst => inst.dueDate >= dayStart && inst.dueDate <= dayEnd)
+                    .reduce((acc, inst) => acc + inst.amount, 0);
+                return { label: dayNum.toString(), month: m, year: y, value: total };
+            });
+        }
+    }, [installments, installmentChartDrilldown]);
+
+    const maxInstallmentTrend = Math.max(...installmentTrendData.map(d => d.value), 100);
 
     return (
         <div className="min-h-screen bg-[#94A3B8] dark:bg-[#020617] px-4 md:px-8 py-8 pb-24 no-scrollbar overflow-x-hidden selection:bg-primary/20">
@@ -309,6 +372,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 </header>
 
                 {/* --- QUICK STATS SECTION --- */}
+                {/* --- ROW 1: Main KPIs --- */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {/* Faturamento */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
@@ -346,23 +410,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                         </div>
                     </div>
 
-                    {/* Recebíveis */}
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 hover:scale-[1.02] transition-all duration-300 group">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="size-10 bg-danger/10 rounded-xl flex items-center justify-center text-danger">
-                                <span className="material-symbols-outlined">receipt_long</span>
-                            </div>
-                        </div>
-                        <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1">Contas a Receber</p>
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-1">R$ {stats.outstanding.toLocaleString()}</h2>
-                        {stats.overdue > 0 && (
-                            <p className="text-[10px] font-bold text-danger flex items-center gap-1">
-                                <span className="size-1 bg-danger rounded-full animate-ping" />
-                                R$ {stats.overdue.toLocaleString()} em atraso
-                            </p>
-                        )}
-                    </div>
-
                     {/* Canais */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 hover:scale-[1.02] transition-all duration-300">
                         <div className="flex items-center justify-between mb-4">
@@ -381,6 +428,106 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                                 <p className="text-[8px] font-bold text-slate-400 uppercase">Presencial</p>
                                 <p className="text-sm font-black text-slate-900 dark:text-white">R$ {stats.presencialSales.toLocaleString()}</p>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Contas a Receber (Parcelamento) */}
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 hover:scale-[1.02] transition-all duration-300 group">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="size-10 bg-danger/10 rounded-xl flex items-center justify-center text-danger">
+                                <span className="material-symbols-outlined">receipt_long</span>
+                            </div>
+                        </div>
+                        <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1">Contas a Receber</p>
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-1">R$ {stats.outstanding.toLocaleString()}</h2>
+                        {stats.overdue > 0 && (
+                            <p className="text-[10px] font-bold text-danger flex items-center gap-1">
+                                <span className="size-1 bg-danger rounded-full animate-ping" />
+                                R$ {stats.overdue.toLocaleString()} em atraso
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                {/* --- ROW 2: Financial Breakdown --- */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {/* Já Recebido */}
+                    <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-[2.5rem] shadow-xl shadow-emerald-500/15 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+                        <div className="absolute top-0 right-0 p-6 opacity-10 scale-[2] pointer-events-none">
+                            <span className="material-symbols-outlined text-white text-7xl">check_circle</span>
+                        </div>
+                        <div className="relative z-10">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="size-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                                    <span className="material-symbols-outlined text-white">savings</span>
+                                </div>
+                                <span className="text-[10px] font-black text-white/70 bg-white/15 px-2 py-1 rounded-lg uppercase tracking-widest backdrop-blur-sm">Confirmado</span>
+                            </div>
+                            <p className="text-[9px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Já Recebido</p>
+                            <h2 className="text-2xl font-black text-white">R$ {stats.paidAmount.toLocaleString()}</h2>
+                            <p className="text-[10px] font-bold text-white/60 mt-1">
+                                {stats.totalRevenue > 0 ? Math.round((stats.paidAmount / stats.totalRevenue) * 100) : 0}% do faturamento
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Sem Baixa (Vendedores) */}
+                    <div className="bg-gradient-to-br from-orange-500 to-amber-600 p-6 rounded-[2.5rem] shadow-xl shadow-orange-500/15 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+                        <div className="absolute top-0 right-0 p-6 opacity-10 scale-[2] pointer-events-none">
+                            <span className="material-symbols-outlined text-white text-7xl">warning</span>
+                        </div>
+                        <div className="relative z-10">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="size-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                                    <span className="material-symbols-outlined text-white">assignment_ind</span>
+                                </div>
+                                <span className="text-[10px] font-black text-white/70 bg-white/15 px-2 py-1 rounded-lg uppercase tracking-widest backdrop-blur-sm">Atenção</span>
+                            </div>
+                            <p className="text-[9px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Sem Baixa (Vendedores)</p>
+                            <h2 className="text-2xl font-black text-white">R$ {stats.unaccountedBySellers.toLocaleString()}</h2>
+                            <p className="text-[10px] font-bold text-white/60 mt-1">
+                                Vendas recebidas sem fechamento
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Pendente A Prazo */}
+                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-6 rounded-[2.5rem] shadow-xl shadow-blue-500/15 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+                        <div className="absolute top-0 right-0 p-6 opacity-10 scale-[2] pointer-events-none">
+                            <span className="material-symbols-outlined text-white text-7xl">credit_score</span>
+                        </div>
+                        <div className="relative z-10">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="size-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                                    <span className="material-symbols-outlined text-white">credit_score</span>
+                                </div>
+                                <span className="text-[10px] font-black text-white/70 bg-white/15 px-2 py-1 rounded-lg uppercase tracking-widest backdrop-blur-sm">Parcelado</span>
+                            </div>
+                            <p className="text-[9px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Pendente A Prazo</p>
+                            <h2 className="text-2xl font-black text-white">R$ {stats.pendingFutureAmount.toLocaleString()}</h2>
+                            <p className="text-[10px] font-bold text-white/60 mt-1">
+                                Parcelas futuras a vencer
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Em Atraso */}
+                    <div className={`p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden group hover:scale-[1.02] transition-all duration-300 ${stats.overdueAmount > 0 ? 'bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/15' : 'bg-gradient-to-br from-slate-400 to-slate-500 shadow-slate-500/10'}`}>
+                        <div className="absolute top-0 right-0 p-6 opacity-10 scale-[2] pointer-events-none">
+                            <span className="material-symbols-outlined text-white text-7xl">schedule</span>
+                        </div>
+                        <div className="relative z-10">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="size-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                                    <span className="material-symbols-outlined text-white">schedule</span>
+                                </div>
+                                {stats.overdueAmount > 0 && <span className="size-2 bg-white rounded-full animate-ping" />}
+                            </div>
+                            <p className="text-[9px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Em Atraso</p>
+                            <h2 className="text-2xl font-black text-white">R$ {stats.overdueAmount.toLocaleString()}</h2>
+                            <p className="text-[10px] font-bold text-white/60 mt-1">
+                                {stats.overdueAmount > 0 ? 'Parcelas vencidas' : 'Nenhuma parcela vencida'}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -625,6 +772,109 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                                         <div className="h-2 w-full bg-slate-50 dark:bg-slate-900 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-indigo-500 to-primary rounded-full group-hover:brightness-110 transition-all duration-1000" style={{ width: `${(item.total / (geoDrilldown.level === 'city' ? stats.totalRevenue : (stats.cityStats.find(c => c.name === geoDrilldown.selectedCity)?.total || 1))) * 100}%` }} /></div>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+
+                        {/* INSTALLMENT RECEIVABLES LINE CHART */}
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 flex flex-col min-h-[400px]">
+                            <div className="flex items-center justify-between mb-8">
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
+                                        <span className="material-symbols-outlined text-blue-500">credit_score</span> Parcelas a Receber
+                                    </h3>
+                                    <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest pl-8">
+                                        {installmentChartDrilldown.level === 'month' ? 'Visão mensal — clique para ver dias' : 'Visão diária'}
+                                    </p>
+                                </div>
+                                {installmentChartDrilldown.level === 'day' && (
+                                    <button
+                                        onClick={() => setInstallmentChartDrilldown({ level: 'month', selectedMonth: null, selectedYear: null })}
+                                        className="px-4 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 hover:bg-primary hover:text-white transition-all"
+                                    >
+                                        ← Voltar
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex-1 flex gap-4 pr-4">
+                                {/* Y Axis */}
+                                <div className="flex flex-col justify-between pt-4 pb-14 text-[9px] font-black text-slate-400 text-right w-14 tracking-tighter">
+                                    <span>R${maxInstallmentTrend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                    <span>R${(maxInstallmentTrend * 0.75).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                    <span>R${(maxInstallmentTrend * 0.5).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                    <span>R${(maxInstallmentTrend * 0.25).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                    <span>R$0</span>
+                                </div>
+
+                                <div className="flex-1 relative pt-4 pb-8">
+                                    {/* Grid */}
+                                    <div className="absolute inset-x-0 top-4 bottom-8 border-l-2 border-b-2 border-slate-200 dark:border-slate-700 z-0" />
+                                    <div className="absolute inset-x-0 top-4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
+                                    <div className="absolute inset-x-0 top-1/4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
+                                    <div className="absolute inset-x-0 top-1/2 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
+                                    <div className="absolute inset-x-0 top-3/4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
+
+                                    {/* SVG Line */}
+                                    <svg className="absolute inset-x-0 top-4 bottom-8 w-full h-[calc(100%-48px)] pointer-events-none z-10" preserveAspectRatio="none" viewBox="0 0 100 100">
+                                        <defs>
+                                            <linearGradient id="instGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3"/>
+                                                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/>
+                                            </linearGradient>
+                                        </defs>
+                                        {installmentTrendData.length > 1 && (
+                                            <>
+                                                <path
+                                                    d={`M ${installmentTrendData.map((d, i) => `${(i / (installmentTrendData.length - 1)) * 100} ${100 - (d.value / maxInstallmentTrend) * 100}`).join(' L ')} L 100 100 L 0 100 Z`}
+                                                    fill="url(#instGrad)"
+                                                />
+                                                <path
+                                                    d={`M ${installmentTrendData.map((d, i) => `${(i / (installmentTrendData.length - 1)) * 100} ${100 - (d.value / maxInstallmentTrend) * 100}`).join(' L ')}`}
+                                                    fill="none"
+                                                    stroke="#3b82f6"
+                                                    strokeWidth="3"
+                                                    strokeLinecap="round"
+                                                    vectorEffect="non-scaling-stroke"
+                                                />
+                                            </>
+                                        )}
+                                    </svg>
+
+                                    {/* Data Points & Labels */}
+                                    <div className="flex items-end justify-between h-full relative z-20">
+                                        {installmentTrendData.map((d, i) => {
+                                            const yPos = maxInstallmentTrend > 0 ? 100 - (d.value / maxInstallmentTrend) * 100 : 100;
+                                            return (
+                                                <div
+                                                    key={i}
+                                                    className="flex-1 flex flex-col items-center group/dot relative h-full cursor-pointer"
+                                                    onClick={() => {
+                                                        if (installmentChartDrilldown.level === 'month' && d.value > 0) {
+                                                            setInstallmentChartDrilldown({ level: 'day', selectedMonth: d.month, selectedYear: d.year });
+                                                        }
+                                                    }}
+                                                >
+                                                    {/* Tooltip */}
+                                                    <div className="absolute -translate-x-1/2 opacity-0 group-hover/dot:opacity-100 transition-all duration-200 z-30 bg-blue-600 text-white text-[8px] font-black px-2.5 py-1.5 rounded-xl shadow-lg whitespace-nowrap pointer-events-none" style={{ left: '50%', top: `${yPos - 5}%`, transform: 'translate(-50%, -100%)' }}>
+                                                        R$ {d.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        {installmentChartDrilldown.level === 'month' && d.value > 0 && <span className="opacity-60 ml-1">🔍</span>}
+                                                    </div>
+                                                    {/* Dot */}
+                                                    <div
+                                                        className={`absolute size-3 rounded-full border-[3px] border-white dark:border-slate-800 transition-all duration-300 z-20 group-hover/dot:scale-[2] ${d.value > 0 ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                                        style={{ top: `${yPos}%`, transform: 'translateY(-50%)' }}
+                                                    />
+                                                    {/* Label */}
+                                                    <div className="absolute bottom-0 w-full text-center translate-y-6">
+                                                        <span className={`text-[8px] font-black transition-colors ${d.value > 0 ? 'text-slate-500 group-hover/dot:text-blue-500' : 'text-slate-300'}`}>
+                                                            {d.label}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
