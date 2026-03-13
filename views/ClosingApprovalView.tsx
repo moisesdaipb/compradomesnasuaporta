@@ -117,7 +117,13 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
     // 2. Metrics Calculation (Based on Date Range)
     const totalSold = useMemo(() => sales
         ? sales
-            .filter(s => s.status !== OrderStatus.CANCELLED && s.paymentMethod !== PaymentMethod.TERM && isDateInRange(s.createdAt))
+            .filter(s => s.status !== OrderStatus.CANCELLED && isDateInRange(s.createdAt))
+            .reduce((acc, s) => acc + s.total, 0)
+        : 0, [sales, dateFilterType, customDate]);
+
+    const totalTermSales = useMemo(() => sales
+        ? sales
+            .filter(s => s.status !== OrderStatus.CANCELLED && s.paymentMethod === PaymentMethod.TERM && isDateInRange(s.createdAt))
             .reduce((acc, s) => acc + s.total, 0)
         : 0, [sales, dateFilterType, customDate]);
 
@@ -132,7 +138,7 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
         [filteredClosingsByDate]);
 
     const totalAccounted = totalApproved + totalPending;
-    const unaccounted = Math.max(0, totalSold - totalAccounted);
+    const unaccounted = Math.max(0, totalSold - totalTermSales - totalAccounted);
     const pendingCount = dailyClosings.filter(c => c.status === ClosingStatus.PENDING).length; // Global pending count for badge
 
     // --- "Not Sent" Logic ---
@@ -328,16 +334,22 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
                             <span className="material-symbols-outlined opacity-50">calendar_today</span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 mt-4">
+                        <div className="grid grid-cols-3 gap-2 mt-4">
                             <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
                                 <p className="text-[9px] uppercase font-bold opacity-70 mb-0.5">Confirmado</p>
-                                <p className="text-base font-black text-green-300">
+                                <p className="text-sm font-black text-green-300">
                                     R$ {totalApproved.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                            </div>
+                            <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
+                                <p className="text-[9px] uppercase font-bold opacity-70 mb-0.5">A Prazo</p>
+                                <p className="text-sm font-black text-blue-300">
+                                    R$ {totalTermSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                 </p>
                             </div>
                             <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm text-right">
                                 <p className="text-[9px] uppercase font-bold opacity-70 mb-0.5">A Prestar Contas</p>
-                                <p className={`text-base font-black ${unaccounted > 0 ? 'text-red-300' : 'text-white/60'}`}>
+                                <p className={`text-sm font-black ${unaccounted > 0 ? 'text-red-300' : 'text-white/60'}`}>
                                     R$ {unaccounted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                 </p>
                             </div>
