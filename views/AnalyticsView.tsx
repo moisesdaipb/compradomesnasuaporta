@@ -547,7 +547,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
                             <div className="flex-1 flex gap-4 pr-4">
                                 {/* Y-AXIS LABELS */}
-                                <div className="flex flex-col justify-between pt-12 pb-14 text-[9px] font-black text-slate-400 text-right w-12 tracking-tighter uppercase">
+                                <div className="flex flex-col justify-between pt-4 pb-14 text-[9px] font-black text-slate-400 text-right w-12 tracking-tighter uppercase">
                                     <span>R${(maxTrend).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                                     <span>R${(maxTrend * 0.75).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                                     <span>R${(maxTrend * 0.5).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
@@ -555,28 +555,50 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                                     <span>R$0</span>
                                 </div>
 
-                                <div className="flex-1 relative pt-12 pb-8 group/chart">
-                                    {/* CARTESIAN AXES & GRID */}
-                                    <div className="absolute inset-x-0 top-12 bottom-8 border-l-2 border-b-2 border-slate-200 dark:border-slate-700 z-0" />
-                                    <div className="absolute inset-x-0 top-12 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
+                                <div className="flex-1 relative pt-4 pb-8">
+                                    {/* GRID LINES */}
+                                    <div className="absolute inset-x-0 top-4 bottom-8 border-l-2 border-b-2 border-slate-200 dark:border-slate-700 z-0" />
+                                    <div className="absolute inset-x-0 top-4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
                                     <div className="absolute inset-x-0 top-1/4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
                                     <div className="absolute inset-x-0 top-1/2 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
                                     <div className="absolute inset-x-0 top-3/4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
 
-                                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" preserveAspectRatio="none">
-                                        <defs><linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--primary)" stopOpacity="0.4"/><stop offset="100%" stopColor="var(--primary)" stopOpacity="0"/></linearGradient></defs>
-                                        <path d={`M ${dailyMonthTrend.map((m, i) => `${(i / (dailyMonthTrend.length - 1)) * 100}% ${80 - (m.value / maxTrend) * 60}%`).join(' L ')} L 100% 100% L 0% 100% Z`} fill="url(#lineGrad)" className="transition-all duration-1000" />
-                                        <path d={`M ${dailyMonthTrend.map((m, i) => `${(i / (dailyMonthTrend.length - 1)) * 100}% ${80 - (m.value / maxTrend) * 60}%`).join(' L ')}`} fill="none" stroke="var(--primary)" strokeWidth="4" strokeLinecap="round" className="transition-all duration-1000" style={{ filter: 'drop-shadow(0 8px 16px rgba(var(--primary-rgb), 0.4))' }} />
-                                    </svg>
-
-                                    <div className="flex items-end justify-between h-full relative z-20">
+                                    {/* COLUMNS */}
+                                    <div className="flex items-end gap-[2px] h-full relative z-10 px-1" style={{ paddingBottom: '32px', paddingTop: '0' }}>
                                         {dailyMonthTrend.map((m, i) => {
-                                            const yPos = 80 - (m.value / maxTrend) * 60;
+                                            const heightPct = maxTrend > 0 ? Math.max(m.value > 0 ? 2 : 0, (m.value / maxTrend) * 100) : 0;
+                                            const formatVal = (v: number) => {
+                                                if (v === 0) return '';
+                                                if (v >= 1000) return `${(v / 1000).toFixed(1).replace('.0', '')}k`;
+                                                return v.toFixed(0);
+                                            };
                                             return (
-                                                <div key={i} className="flex-1 flex flex-col items-center group/point relative h-full">
-                                                    <div className="absolute -translate-x-1/2 opacity-0 group-hover/point:opacity-100 transition-all duration-300 z-30 bg-primary text-white text-[8px] font-black px-2 py-1 rounded-xl shadow-lg border-2 border-white dark:border-slate-800" style={{ left: '50%', top: `${yPos - 12}%`, transform: 'translate(-50%, -100%)' }}>R$ {m.value.toLocaleString()}</div>
-                                                    <div className={`absolute size-4 rounded-full border-4 border-white dark:border-slate-800 transition-all duration-500 z-20 group-hover/point:scale-[1.8] group-hover/point:bg-white group-hover/point:border-primary cursor-pointer ${m.value > 0 ? 'bg-primary shadow-[0_0_15px_rgba(var(--primary-rgb),0.5)]' : 'bg-slate-200 dark:bg-slate-700'}`} style={{ top: `${yPos}%`, transform: 'translateY(-50%)' }} />
-                                                    <div className="absolute bottom-0 w-full text-center translate-y-6"><span className="text-[9px] font-black text-slate-400 group-hover/point:text-primary transition-colors">{m.label}</span></div>
+                                                <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group/bar relative">
+                                                    {/* Value label */}
+                                                    {m.value > 0 && (
+                                                        <span className="text-[7px] font-black text-primary mb-0.5 opacity-80 group-hover/bar:opacity-100 transition-opacity whitespace-nowrap">
+                                                            {formatVal(m.value)}
+                                                        </span>
+                                                    )}
+                                                    {/* Tooltip on hover */}
+                                                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-all duration-200 z-30 bg-slate-900 text-white text-[8px] font-black px-2 py-1 rounded-lg shadow-lg whitespace-nowrap pointer-events-none">
+                                                        Dia {m.label}: R$ {m.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                    </div>
+                                                    {/* Bar */}
+                                                    <div
+                                                        className={`w-full rounded-t-sm transition-all duration-700 ease-out cursor-pointer ${
+                                                            m.value > 0
+                                                                ? 'bg-gradient-to-t from-primary to-blue-400 group-hover/bar:from-primary group-hover/bar:to-blue-300 shadow-sm shadow-primary/20'
+                                                                : 'bg-slate-100 dark:bg-slate-700/30'
+                                                        }`}
+                                                        style={{ height: `${heightPct}%`, minHeight: m.value > 0 ? '4px' : '1px' }}
+                                                    />
+                                                    {/* Day label */}
+                                                    <div className="absolute bottom-0 w-full text-center translate-y-6">
+                                                        <span className={`text-[8px] font-black transition-colors ${m.value > 0 ? 'text-slate-500 group-hover/bar:text-primary' : 'text-slate-300 dark:text-slate-600'}`}>
+                                                            {m.label}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             );
                                         })}
