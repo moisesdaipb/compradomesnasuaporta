@@ -17,6 +17,7 @@ import {
 } from '../types';
 import { getStockQuantity } from '../store';
 import { DAILY_GOAL } from '../constants';
+import { formatCurrency } from '../utils';
 
 interface DashboardProps {
   sales: Sale[];
@@ -155,6 +156,68 @@ const Dashboard: React.FC<DashboardProps> = ({
   const pendingClosings = dailyClosings.filter(c => c.status === ClosingStatus.PENDING).length;
 
   const cancellationRequests = sales.filter(s => s.status === OrderStatus.CANCELLATION_REQUESTED).length;
+
+  // ==========================================
+  // FINANCIAL OVERVIEW (Manager only)
+  // ==========================================
+  const financialOverview = useMemo(() => {
+    if (userRole !== 'gerente') return null;
+
+    const activeSales = sales.filter(s => s.status !== OrderStatus.CANCELLED);
+    const totalSoldAll = activeSales.reduce((acc, s) => acc + s.total, 0);
+
+    // Sales IDs in approved closings
+    const approvedClosings = dailyClosings.filter(c => c.status === ClosingStatus.APPROVED);
+    const closedSaleIds = new Set<string>();
+    approvedClosings.forEach(c => {
+      (c.salesIds || []).forEach(id => closedSaleIds.add(id));
+    });
+
+    // Total from approved closings
+    const totalFromClosings = approvedClosings.reduce((acc, c) =>
+      acc + c.cashAmount + c.cardAmount + c.pixAmount, 0
+    );
+
+    // Installments
+    const paidInstallments = installments.filter(i => i.status === InstallmentStatus.PAID);
+    const totalInstallmentsPaid = paidInstallments.reduce((acc, i) => acc + i.amount, 0);
+    const pendingInstallmentsArr = installments.filter(i => i.status === InstallmentStatus.PENDING);
+    const totalInstallmentsPending = pendingInstallmentsArr.reduce((acc, i) => acc + i.amount, 0);
+
+    const totalReceived = totalFromClosings + totalInstallmentsPaid;
+    const totalPending = Math.max(0, totalSoldAll - totalReceived);
+    const receivedPercent = totalSoldAll > 0 ? Math.min(100, Math.round((totalReceived / totalSoldAll) * 100)) : 0;
+
+    // Per-seller accountability
+    const sellerMap = new Map<string, { name: string; unclosedTotal: number; unclosedCount: number }>();
+    activeSales.forEach(sale => {
+      if (!sale.sellerId || closedSaleIds.has(sale.id)) return;
+      const existing = sellerMap.get(sale.sellerId);
+      if (existing) {
+        existing.unclosedTotal += sale.total;
+        existing.unclosedCount += 1;
+      } else {
+        sellerMap.set(sale.sellerId, {
+          name: sale.sellerName || 'Vendedor',
+          unclosedTotal: sale.total,
+          unclosedCount: 1,
+        });
+      }
+    });
+
+    const sellerAccountability = Array.from(sellerMap.values())
+      .filter(s => s.unclosedTotal > 0)
+      .sort((a, b) => b.unclosedTotal - a.unclosedTotal);
+
+    return {
+      totalSoldAll,
+      totalReceived,
+      totalPending,
+      totalInstallmentsPending,
+      receivedPercent,
+      sellerAccountability,
+    };
+  }, [sales, dailyClosings, installments, userRole]);
 
   // Low stock items
   const lowStockItems = baskets.filter(b => {
@@ -521,6 +584,124 @@ const Dashboard: React.FC<DashboardProps> = ({
               <p className="text-[10px] font-bold text-white/60 dark:text-slate-400 mt-0.5 uppercase tracking-tighter">Acessos e Cargos</p>
             </button>
           </div>
+        </section>
+      )}
+
+      {/* ==========================================
+          FINANCIAL OVERVIEW SECTION (Gerente only)
+         ========================================== */}
+      {userRole === 'gerente' && financialOverview && (
+        <section className="px-4 space-y-4">
+          {/* Financial Summary Card */}
+          <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-5 rounded-3xl shadow-xl shadow-emerald-600/20">
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="size-9 bg-white/15 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                <span className="material-symbols-outlined text-lg">account_balance_wallet</span>
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold">Resumo Financeiro</h3>
+                <p className="text-[9px] opacity-70 font-medium uppercase tracking-widest">Visão geral de recebimentos</p>
+              </div>
+            </div>
+
+            {/* Main Numbers */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <p className="text-[9px] font-bold opacity-60 uppercase tracking-widest mb-0.5">Recebido</p>
+                <p className="text-xl font-black tracking-tight">
+                  {formatCurrency(financialOverview.totalReceived)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-bold opacity-60 uppercase tracking-widest mb-0.5">A Receber</p>
+                <p className="text-xl font-black tracking-tight text-yellow-300">
+                  {formatCurrency(financialOverview.totalPending)}
+                </p>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="mb-4">
+              <div className="flex justify-between text-[9px] font-bold opacity-70 mb-1">
+                <span>{financialOverview.receivedPercent}% recebido</span>
+                <span>Total: {formatCurrency(financialOverview.totalSoldAll)}</span>
+              </div>
+              <div className="h-2.5 bg-black/20 rounded-full overflow-hidden backdrop-blur-sm">
+                <div
+                  className="h-full bg-white rounded-full transition-all duration-1000 ease-out relative"
+                  style={{ width: `${financialOverview.receivedPercent}%` }}
+                >
+                  <div className="absolute inset-0 bg-white/30 animate-pulse" />
+                </div>
+              </div>
+            </div>
+
+            {/* Breakdown */}
+            {financialOverview.totalInstallmentsPending > 0 && (
+              <div className="pt-3 border-t border-white/15">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-sm opacity-70">credit_score</span>
+                    <p className="text-[10px] font-bold opacity-80">Parcelas Pendentes</p>
+                  </div>
+                  <p className="text-sm font-black text-yellow-300">
+                    {formatCurrency(financialOverview.totalInstallmentsPending)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Seller Accountability List */}
+          {financialOverview.sellerAccountability.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
+              <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="size-8 bg-orange-500/10 rounded-xl flex items-center justify-center">
+                    <span className="material-symbols-outlined text-orange-600 text-lg">assignment_ind</span>
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">Prestação de Contas</h4>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Vendas sem fechamento</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                {financialOverview.sellerAccountability.slice(0, 5).map((seller, idx) => (
+                  <div
+                    key={idx}
+                    className="px-5 py-3.5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="size-9 bg-primary/10 rounded-xl flex items-center justify-center">
+                        <span className="material-symbols-outlined text-primary text-base">person</span>
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-slate-900 dark:text-white">{seller.name}</p>
+                        <p className="text-[10px] text-slate-400 font-bold">
+                          {seller.unclosedCount} venda{seller.unclosedCount !== 1 ? 's' : ''} pendente{seller.unclosedCount !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="font-black text-sm text-orange-600">
+                      {formatCurrency(seller.unclosedTotal)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="px-5 pb-4 pt-2">
+                <button
+                  onClick={() => setView('closing-approval')}
+                  className="w-full py-3 bg-orange-500/10 text-orange-600 font-bold rounded-2xl text-xs uppercase tracking-widest active:scale-95 transition-all"
+                >
+                  Ver Fechamentos
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
