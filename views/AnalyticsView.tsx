@@ -1,995 +1,448 @@
 import React, { useMemo } from 'react';
 import { DailyClosing, ClosingStatus } from '../types';
-// Date utilities to avoid external dependency issues
-const formatDate = (date: Date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-};
+const formatDate = (date: Date) => { const y = date.getFullYear(); const m = String(date.getMonth() + 1).padStart(2, '0'); const d = String(date.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; };
 const startOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
 const endOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
 
-import {
-    Sale,
-    Installment,
-    BasketModel,
-    StockItem,
-    TeamMember,
-    LoginLog,
-    OrderStatus,
-    InstallmentStatus,
-    SaleGoal,
-    AppSettings,
-    Delivery,
-    PaymentMethod,
-    DeliveryStatus,
-    Customer
-} from '../types';
-
-interface FilterState {
-    dateRange: 'all' | 'today' | 'week' | 'month' | 'year' | 'custom';
-    startDate?: string;
-    endDate?: string;
-    sellerId: string;
-    basketModelId: string;
-    paymentMethod: string;
-    channel: 'all' | 'online' | 'presencial';
-    driverId: string;
-    deliveryStatus: string;
-    customerRecurrence: 'all' | '1-purchase' | '2-purchases' | '3-more';
-    pendingDeliveriesOnly: boolean;
-    overdueInstallmentsOnly: 'all' | 'yes' | 'no';
-    installmentFilter: 'all' | 'yes' | 'no';
-}
+import { Sale, Installment, BasketModel, StockItem, TeamMember, LoginLog, OrderStatus, InstallmentStatus, SaleGoal, AppSettings, Delivery, PaymentMethod, DeliveryStatus, Customer } from '../types';
 
 interface AnalyticsViewProps {
-    sales: Sale[];
-    installments: Installment[];
-    deliveries: Delivery[];
-    dailyClosings: DailyClosing[];
-    baskets: BasketModel[];
-    stock: StockItem[];
-    team: TeamMember[];
-    goals: SaleGoal[];
-    settings: AppSettings;
-    loginLogs: LoginLog[];
-    customers: Customer[];
-    setView: (v: any) => void;
+    sales: Sale[]; installments: Installment[]; deliveries: Delivery[]; dailyClosings: DailyClosing[];
+    baskets: BasketModel[]; stock: StockItem[]; team: TeamMember[]; goals: SaleGoal[];
+    settings: AppSettings; loginLogs: LoginLog[]; customers: Customer[]; setView: (v: any) => void;
 }
 
-const AnalyticsView: React.FC<AnalyticsViewProps> = ({
-    sales,
-    installments,
-    deliveries,
-    dailyClosings,
-    baskets,
-    stock,
-    team,
-    goals,
-    settings,
-    loginLogs,
-    customers,
-    setView
-}) => {
-    // --- State ---
-    const [filters, setFilters] = React.useState<FilterState>({
-        dateRange: 'custom',
-        startDate: '2026-03-01',
-        endDate: '2026-03-31',
-        sellerId: 'all',
-        basketModelId: 'all',
-        paymentMethod: 'all',
-        channel: 'all',
-        driverId: 'all',
-        deliveryStatus: 'all',
-        customerRecurrence: 'all',
-        pendingDeliveriesOnly: false,
-        overdueInstallmentsOnly: 'all',
-        installmentFilter: 'all'
-    });
+const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-    const [isFilterVisible, setIsFilterVisible] = React.useState(false);
-    const [geoDrilldown, setGeoDrilldown] = React.useState<{ level: 'city' | 'neighborhood', selectedCity: string | null }>({
-        level: 'city',
-        selectedCity: null
-    });
+// --- MODAL COMPONENT ---
+const Modal: React.FC<{ title: string; icon: string; color: string; onClose: () => void; children: React.ReactNode }> = ({ title, icon, color, onClose, children }) => (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={onClose}>
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+        <div className="relative bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-gradient-to-r ${color}`}>
+                <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-white text-xl">{icon}</span>
+                    <h3 className="text-base font-black text-white tracking-tight">{title}</h3>
+                </div>
+                <button onClick={onClose} className="size-8 rounded-xl bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors">
+                    <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(85vh-64px)] no-scrollbar">{children}</div>
+        </div>
+    </div>
+);
 
-    // --- Filtering Logic ---
-    const filteredSales = useMemo(() => {
-        return sales.filter(sale => {
-            // Date Filter
-            if (filters.dateRange !== 'all' && filters.startDate && filters.endDate) {
-                const startTs = new Date(filters.startDate + 'T00:00:00').getTime();
-                const endTs = new Date(filters.endDate + 'T23:59:59').getTime();
-                if (sale.createdAt < startTs || sale.createdAt > endTs) return false;
-            }
+const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deliveries, dailyClosings, baskets, stock, team, goals, settings, loginLogs, customers, setView }) => {
+    const [activeModal, setActiveModal] = React.useState<string | null>(null);
+    const [activeTab, setActiveTab] = React.useState<'vendas' | 'parcelas'>('vendas');
+    const [geoDrill, setGeoDrill] = React.useState<{ level: 'city' | 'neighborhood' | 'client'; city: string | null; neighborhood: string | null }>({ level: 'city', city: null, neighborhood: null });
 
-            // Other Filters
-            if (filters.sellerId !== 'all' && sale.sellerId !== filters.sellerId) return false;
-            if (filters.basketModelId !== 'all' && !sale.items.some(i => i.basketModelId === filters.basketModelId)) return false;
-            if (filters.paymentMethod !== 'all' && sale.paymentMethod !== filters.paymentMethod) return false;
-            if (filters.channel !== 'all' && sale.channel !== filters.channel) return false;
-            
-            // Recurrence (Granular)
-            if (filters.customerRecurrence !== 'all') {
-                const customerSalesCount = sales.filter(s => s.customerId === sale.customerId).length;
-                if (filters.customerRecurrence === '1-purchase' && customerSalesCount !== 1) return false;
-                if (filters.customerRecurrence === '2-purchases' && customerSalesCount !== 2) return false;
-                if (filters.customerRecurrence === '3-more' && customerSalesCount < 3) return false;
-            }
+    // --- CORE DATA ---
+    const activeSales = useMemo(() => sales.filter(s => s.status !== OrderStatus.CANCELLED), [sales]);
+    const totalRevenue = useMemo(() => activeSales.reduce((a, s) => a + s.total, 0), [activeSales]);
+    const onlineRevenue = useMemo(() => activeSales.filter(s => s.channel === 'online').reduce((a, s) => a + s.total, 0), [activeSales]);
+    const presencialRevenue = useMemo(() => activeSales.filter(s => s.channel === 'presencial').reduce((a, s) => a + s.total, 0), [activeSales]);
+    const cashRevenue = useMemo(() => activeSales.filter(s => s.paymentMethod !== PaymentMethod.TERM).reduce((a, s) => a + s.total, 0), [activeSales]);
+    const termRevenue = useMemo(() => activeSales.filter(s => s.paymentMethod === PaymentMethod.TERM).reduce((a, s) => a + s.total, 0), [activeSales]);
 
-            // Toggles
-            if (filters.pendingDeliveriesOnly) {
-                if (sale.status === OrderStatus.DELIVERED || sale.status === OrderStatus.CANCELLED) return false;
-            }
+    // Installments
+    const pendingInstallments = useMemo(() => installments.filter(i => i.status === InstallmentStatus.PENDING), [installments]);
+    const pendingInstTotal = useMemo(() => pendingInstallments.reduce((a, i) => a + i.amount, 0), [pendingInstallments]);
+    const overdueInstallments = useMemo(() => pendingInstallments.filter(i => i.dueDate < Date.now()), [pendingInstallments]);
+    const overdueTotal = useMemo(() => overdueInstallments.reduce((a, i) => a + i.amount, 0), [overdueInstallments]);
+    const paidInstTotal = useMemo(() => installments.filter(i => i.status === InstallmentStatus.PAID).reduce((a, i) => a + i.amount, 0), [installments]);
 
-            if (filters.overdueInstallmentsOnly !== 'all') {
-                const saleInstallments = installments.filter(i => i.saleId === sale.id);
-                const hasOverdue = saleInstallments.some(i => i.status === InstallmentStatus.PENDING && i.dueDate < Date.now());
-                if (filters.overdueInstallmentsOnly === 'yes' && !hasOverdue) return false;
-                if (filters.overdueInstallmentsOnly === 'no' && hasOverdue) return false;
-            }
+    // Closing
+    const closedSaleIds = useMemo(() => {
+        const ids = new Set<string>();
+        dailyClosings.filter(c => c.status === ClosingStatus.APPROVED || c.status === ClosingStatus.PENDING).forEach(c => (c.salesIds || []).forEach(id => ids.add(id)));
+        return ids;
+    }, [dailyClosings]);
+    const closedAmount = useMemo(() => activeSales.filter(s => s.paymentMethod !== PaymentMethod.TERM && closedSaleIds.has(s.id)).reduce((a, s) => a + s.total, 0), [activeSales, closedSaleIds]);
+    const unclosedAmount = useMemo(() => cashRevenue - closedAmount, [cashRevenue, closedAmount]);
 
-            if (filters.installmentFilter !== 'all') {
-                const isInstallment = sale.paymentMethod === PaymentMethod.TERM || (sale.installmentsCount || 0) > 0;
-                if (filters.installmentFilter === 'yes' && !isInstallment) return false;
-                if (filters.installmentFilter === 'no' && isInstallment) return false;
-            }
+    // Payment methods
+    const paymentBreakdown = useMemo(() => {
+        const map: Record<string, number> = {};
+        activeSales.forEach(s => { const key = s.paymentMethod === PaymentMethod.TERM ? 'A Prazo' : (s.paymentSubMethod || s.paymentMethod); map[key] = (map[key] || 0) + s.total; });
+        return Object.entries(map).sort((a, b) => b[1] - a[1]);
+    }, [activeSales]);
 
-            // Logistics filters
-            if (filters.driverId !== 'all' || filters.deliveryStatus !== 'all') {
-                const del = deliveries.find(d => d.saleId === sale.id);
-                if (!del) return false;
-                if (filters.driverId !== 'all' && del.driverId !== filters.driverId) return false;
-                if (filters.deliveryStatus !== 'all' && del.status !== filters.deliveryStatus) return false;
-            }
+    // Seller ranking (presencial only, exclude unknown)
+    const sellerRanking = useMemo(() => {
+        const map: Record<string, number> = {};
+        activeSales.filter(s => s.channel === 'presencial' && s.sellerId).forEach(s => { map[s.sellerId!] = (map[s.sellerId!] || 0) + s.total; });
+        return Object.entries(map).map(([id, total]) => ({ id, name: team.find(t => t.id === id)?.name || '', total })).filter(s => s.name).sort((a, b) => b.total - a.total);
+    }, [activeSales, team]);
 
-            return true;
-        });
-    }, [sales, filters, deliveries, installments]);
+    // Driver ranking
+    const driverRanking = useMemo(() => {
+        const delivered = deliveries.filter(d => d.status === DeliveryStatus.DELIVERED && d.driverId);
+        const map: Record<string, number> = {};
+        delivered.forEach(d => { map[d.driverId!] = (map[d.driverId!] || 0) + 1; });
+        return Object.entries(map).map(([id, count]) => ({ id, name: team.find(t => t.id === id)?.name || delivered.find(d => d.driverId === id)?.driverName || '', count })).filter(d => d.name).sort((a, b) => b.count - a.count);
+    }, [deliveries, team]);
 
-    const filteredInstallments = useMemo(() => {
-        return installments.filter(inst => filteredSales.some(s => s.id === inst.saleId));
-    }, [installments, filteredSales]);
+    // Customer ranking
+    const customerRanking = useMemo(() => {
+        const map: Record<string, { total: number; count: number }> = {};
+        activeSales.forEach(s => { if (!map[s.customerId]) map[s.customerId] = { total: 0, count: 0 }; map[s.customerId].total += s.total; map[s.customerId].count++; });
+        return Object.entries(map).map(([id, d]) => ({ id, name: customers.find(c => c.id === id)?.name || 'Cliente', ...d })).sort((a, b) => b.total - a.total).slice(0, 10);
+    }, [activeSales, customers]);
 
-    // --- Data Processing ---
-    const stats = useMemo(() => {
-        const activeSales = filteredSales.filter(s => s.status !== OrderStatus.CANCELLED);
+    // Pending deliveries
+    const pendingDeliveries = useMemo(() => deliveries.filter(d => d.status !== DeliveryStatus.DELIVERED && d.status !== DeliveryStatus.CANCELLED), [deliveries]);
 
-        // Faturamento Total
-        const totalRevenue = activeSales.reduce((acc, s) => acc + s.total, 0);
+    // Stock
+    const stockItems = useMemo(() => Array.isArray(stock) ? stock : [], [stock]);
+    const lowStock = useMemo(() => stockItems.filter(s => Number(s.quantity || 0) <= 10), [stockItems]);
+    const criticalStock = useMemo(() => stockItems.filter(s => Number(s.quantity || 0) <= 5), [stockItems]);
 
-        // Online vs Presencial
-        const onlineSales = activeSales.filter(s => s.channel === 'online').reduce((acc, s) => acc + s.total, 0);
-        const presencialSales = activeSales.filter(s => s.channel === 'presencial').reduce((acc, s) => acc + s.total, 0);
+    // Goal
+    const goal = useMemo(() => goals.find(g => g.type === 'geral' && g.period === 'mensal' && !g.isCancelled), [goals]);
+    const goalPct = useMemo(() => Math.min(((totalRevenue / (goal?.amount || 50000)) * 100), 100), [totalRevenue, goal]);
 
-        // Contas a Receber & Atrasos
-        const pendingInstallments = filteredInstallments.filter(i => i.status === InstallmentStatus.PENDING);
-        const outstanding = pendingInstallments.reduce((acc, i) => acc + i.amount, 0);
-        const overdue = pendingInstallments
-            .filter(i => i.dueDate < Date.now())
-            .reduce((acc, i) => acc + i.amount, 0);
-
-        // Distribuição Financeira
-        // O valor recebido inclui vendas à vista (não a prazo) e parcelas já pagas
-        const cashSalesRevenue = activeSales
-            .filter(s => s.paymentMethod !== PaymentMethod.TERM)
-            .reduce((acc, s) => acc + s.total, 0);
-            
-        const paidAmount = cashSalesRevenue + filteredInstallments
-            .filter(i => i.status === InstallmentStatus.PAID)
-            .reduce((acc, i) => acc + i.amount, 0);
-            
-        const overdueAmount = overdue;
-        const pendingFutureAmount = outstanding - overdue;
-
-        // Ranking de Vendedores
-        const sellerRevenue: Record<string, number> = {};
+    // Geo data with 3-level drill
+    const geoData = useMemo(() => {
+        const cityMap: Record<string, { total: number; count: number; neighborhoods: Record<string, { total: number; count: number; clients: Record<string, { name: string; total: number; count: number }> }> }> = {};
         activeSales.forEach(s => {
-            sellerRevenue[s.sellerId] = (sellerRevenue[s.sellerId] || 0) + s.total;
+            const c = customers.find(cu => cu.id === s.customerId);
+            const city = c?.city || 'Não Informada';
+            const nb = c?.neighborhood || 'Não Informado';
+            if (!cityMap[city]) cityMap[city] = { total: 0, count: 0, neighborhoods: {} };
+            cityMap[city].total += s.total; cityMap[city].count++;
+            if (!cityMap[city].neighborhoods[nb]) cityMap[city].neighborhoods[nb] = { total: 0, count: 0, clients: {} };
+            cityMap[city].neighborhoods[nb].total += s.total; cityMap[city].neighborhoods[nb].count++;
+            const cid = s.customerId;
+            if (!cityMap[city].neighborhoods[nb].clients[cid]) cityMap[city].neighborhoods[nb].clients[cid] = { name: s.customerName, total: 0, count: 0 };
+            cityMap[city].neighborhoods[nb].clients[cid].total += s.total; cityMap[city].neighborhoods[nb].clients[cid].count++;
         });
-        const sellerStats = Object.entries(sellerRevenue)
-            .map(([id, total]) => ({
-                id,
-                name: team.find(t => t.id === id)?.name || 'Desconhecido',
-                total
-            }))
-            .sort((a, b) => b.total - a.total);
+        return Object.entries(cityMap).map(([name, d]) => ({
+            name, ...d,
+            neighborhoods: Object.entries(d.neighborhoods).map(([n, nd]) => ({
+                name: n, ...nd,
+                clients: Object.entries(nd.clients).map(([, cd]) => cd).sort((a, b) => b.total - a.total)
+            })).sort((a, b) => b.total - a.total)
+        })).sort((a, b) => b.total - a.total);
+    }, [activeSales, customers]);
 
-        // Top Clientes
-        const customerRevenue: Record<string, number> = {};
-        activeSales.forEach(s => {
-            customerRevenue[s.customerId] = (customerRevenue[s.customerId] || 0) + s.total;
-        });
-        const topCustomers = Object.entries(customerRevenue)
-            .map(([id, total]) => ({
-                id,
-                name: customers.find(c => c.id === id)?.name || 'Cliente Mistério',
-                total,
-                salesCount: activeSales.filter(s => s.customerId === id).length
-            }))
-            .sort((a, b) => b.total - a.total)
-            .slice(0, 5);
+    // Installment detail for popup
+    const installmentDetails = useMemo(() => {
+        return pendingInstallments.map(i => {
+            const sale = sales.find(s => s.id === i.saleId);
+            return { ...i, sellerName: sale?.sellerName || '-', customerName: i.customerName };
+        }).sort((a, b) => a.dueDate - b.dueDate);
+    }, [pendingInstallments, sales]);
 
-        // Metas
-        const generalGoal = goals.find(g => g.type === 'geral' && g.period === 'mensal' && !g.isCancelled);
-        const goalValue = generalGoal?.amount || 50000;
-        const goalPct = Math.min((totalRevenue / goalValue) * 100, 100);
-
-        // Estoque
-        const lowStockThreshold = 10;
-        const items = Array.isArray(stock) ? stock : [];
-        const lowStockCount = items.filter(s => Number(s.quantity || 0) <= lowStockThreshold).length;
-        const criticalStockCount = items.filter(s => Number(s.quantity || 0) <= 5).length;
-
-        // Inteligência Geográfica
-        const cityMap: Record<string, { count: number; total: number; neighborhoods: Record<string, { count: number; total: number }> }> = {};
-        activeSales.forEach(s => {
-            const customer = customers.find(c => c.id === s.customerId);
-            let neighborhood = customer?.neighborhood || 'Não Informado';
-            let city = customer?.city || 'Não Informada';
-            
-            if (!cityMap[city]) { cityMap[city] = { count: 0, total: 0, neighborhoods: {} }; }
-            cityMap[city].count++; cityMap[city].total += s.total;
-            if (!cityMap[city].neighborhoods[neighborhood]) { cityMap[city].neighborhoods[neighborhood] = { count: 0, total: 0 }; }
-            cityMap[city].neighborhoods[neighborhood].count++; cityMap[city].neighborhoods[neighborhood].total += s.total;
-        });
-
-        const cityStats = Object.entries(cityMap)
-            .map(([name, data]) => ({ 
-                name, 
-                ...data,
-                neighborhoods: Object.entries(data.neighborhoods)
-                    .map(([nName, nData]) => ({ name: nName, ...nData }))
-                    .sort((a, b) => b.total - a.total)
-            }))
-            .sort((a, b) => b.total - a.total);
-
-        // Unaccounted by sellers: sales that are NOT term AND NOT in any approved/pending closing
-        const approvedClosings = dailyClosings.filter(c => c.status === ClosingStatus.APPROVED || c.status === ClosingStatus.PENDING);
-        const closedSaleIds = new Set<string>();
-        approvedClosings.forEach(c => {
-            (c.salesIds || []).forEach(id => closedSaleIds.add(id));
-        });
-        const unaccountedBySellers = activeSales
-            .filter(s => s.paymentMethod !== PaymentMethod.TERM && !closedSaleIds.has(s.id))
-            .reduce((acc, s) => acc + s.total, 0);
-
-        // Total term (installment) sales pending
-        const totalTermPending = outstanding;
-
-        return {
-            totalRevenue, onlineSales, presencialSales, outstanding, overdue,
-            paidAmount, overdueAmount, pendingFutureAmount, goalValue, goalPct,
-            lowStockCount, criticalStockCount, cityStats, sellerStats, topCustomers,
-            unaccountedBySellers, totalTermPending, cashSalesRevenue
-        };
-    }, [filteredSales, filteredInstallments, goals, stock, team, customers, dailyClosings]);
-
-    const latestSales = useMemo(() => {
-        return [...filteredSales].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
-    }, [filteredSales]);
-
-    const latestLogins = useMemo(() => {
-        return [...loginLogs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
-    }, [loginLogs]);
-
-    const dailyMonthTrend = useMemo(() => {
-        const d = new Date(filters.startDate + 'T00:00:00');
-        const month = d.getMonth();
-        const year = d.getFullYear();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        
-        return Array.from({ length: daysInMonth }, (_, i) => {
-            const dayNum = i + 1;
-            const daySales = filteredSales.filter(s => {
-                const sd = new Date(s.createdAt);
-                return sd.getDate() === dayNum && sd.getMonth() === month && sd.getFullYear() === year && s.status !== OrderStatus.CANCELLED;
-            });
-            return { label: dayNum.toString(), value: daySales.reduce((acc, s) => acc + s.total, 0) };
-        });
-    }, [filteredSales, filters.startDate]);
-
-    const maxTrend = Math.max(...dailyMonthTrend.map(d => d.value), 1000);
-
-    // --- Installment Receivables Trend (for line chart with drill-down) ---
-    const [installmentChartDrilldown, setInstallmentChartDrilldown] = React.useState<{ level: 'month' | 'day'; selectedMonth: number | null; selectedYear: number | null }>({
-        level: 'month',
-        selectedMonth: null,
-        selectedYear: null
-    });
-
-    const installmentTrendData = useMemo(() => {
-        const pendingInst = installments.filter(i => i.status === InstallmentStatus.PENDING);
-        
-        if (installmentChartDrilldown.level === 'month') {
-            // Group by month — show last 12 months
-            const now = new Date();
-            const months: { label: string; month: number; year: number; value: number }[] = [];
-            for (let i = 11; i >= 0; i--) {
-                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                const m = d.getMonth();
-                const y = d.getFullYear();
-                const monthEnd = new Date(y, m + 1, 0, 23, 59, 59).getTime();
-                const monthStart = new Date(y, m, 1, 0, 0, 0).getTime();
-                const total = pendingInst
-                    .filter(inst => inst.dueDate >= monthStart && inst.dueDate <= monthEnd)
-                    .reduce((acc, inst) => acc + inst.amount, 0);
-                const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                months.push({ label: `${monthNames[m]}/${y.toString().slice(2)}`, month: m, year: y, value: total });
-            }
-            return months;
-        } else {
-            // Drill-down: show days of selected month
-            const m = installmentChartDrilldown.selectedMonth!;
-            const y = installmentChartDrilldown.selectedYear!;
-            const daysInMonth = new Date(y, m + 1, 0).getDate();
-            return Array.from({ length: daysInMonth }, (_, i) => {
-                const dayNum = i + 1;
-                const dayStart = new Date(y, m, dayNum, 0, 0, 0).getTime();
-                const dayEnd = new Date(y, m, dayNum, 23, 59, 59).getTime();
-                const total = pendingInst
-                    .filter(inst => inst.dueDate >= dayStart && inst.dueDate <= dayEnd)
-                    .reduce((acc, inst) => acc + inst.amount, 0);
-                return { label: dayNum.toString(), month: m, year: y, value: total };
-            });
+    // Geo max for chart
+    const geoItems = useMemo(() => {
+        if (geoDrill.level === 'city') return geoData.map(c => ({ name: c.name, total: c.total, count: c.count }));
+        if (geoDrill.level === 'neighborhood') {
+            const city = geoData.find(c => c.name === geoDrill.city);
+            return city ? city.neighborhoods.map(n => ({ name: n.name, total: n.total, count: n.count })) : [];
         }
-    }, [installments, installmentChartDrilldown]);
+        const city = geoData.find(c => c.name === geoDrill.city);
+        const nb = city?.neighborhoods.find(n => n.name === geoDrill.neighborhood);
+        return nb ? nb.clients.map(cl => ({ name: cl.name, total: cl.total, count: cl.count })) : [];
+    }, [geoData, geoDrill]);
+    const geoMax = Math.max(...geoItems.map(g => g.total), 1);
 
-    const maxInstallmentTrend = Math.max(...installmentTrendData.map(d => d.value), 100);
+    // --- CARD COMPONENT ---
+    const KpiCard: React.FC<{ icon: string; label: string; value: string; sub?: string; gradient: string; onClick?: () => void; badge?: string }> = ({ icon, label, value, sub, gradient, onClick, badge }) => (
+        <div onClick={onClick} className={`relative p-5 rounded-2xl shadow-lg overflow-hidden transition-all duration-300 cursor-pointer hover:scale-[1.03] hover:shadow-xl active:scale-[0.98] bg-gradient-to-br ${gradient}`}>
+            <div className="absolute top-0 right-0 p-4 opacity-[0.08] scale-[2] pointer-events-none"><span className="material-symbols-outlined text-white text-6xl">{icon}</span></div>
+            <div className="relative z-10">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="size-9 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm"><span className="material-symbols-outlined text-white text-lg">{icon}</span></div>
+                    {badge && <span className="text-[9px] font-black text-white/80 bg-white/15 px-2 py-0.5 rounded-lg uppercase tracking-widest backdrop-blur-sm">{badge}</span>}
+                </div>
+                <p className="text-[9px] font-black text-white/70 uppercase tracking-[0.15em] mb-0.5">{label}</p>
+                <h2 className="text-xl font-black text-white leading-tight">{value}</h2>
+                {sub && <p className="text-[10px] font-medium text-white/60 mt-1">{sub}</p>}
+            </div>
+        </div>
+    );
+
+    // --- RANKING ITEM ---
+    const RankItem: React.FC<{ rank: number; name: string; value: string; max: number; current: number; color: string }> = ({ rank, name, value, max, current, color }) => (
+        <div className="flex items-center gap-3 group">
+            <div className={`size-7 rounded-lg flex items-center justify-center text-xs font-black shadow-sm ${rank === 1 ? `bg-${color} text-white` : 'bg-slate-100 dark:bg-slate-900 text-slate-400'}`}>{rank}</div>
+            <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{name}</p>
+                <div className="h-1 w-full bg-slate-100 dark:bg-slate-700 rounded-full mt-1 overflow-hidden"><div className={`h-full bg-${color} rounded-full transition-all duration-700`} style={{ width: `${(current / max) * 100}%` }} /></div>
+            </div>
+            <span className="text-[10px] font-black text-slate-500 whitespace-nowrap">{value}</span>
+        </div>
+    );
 
     return (
-        <div className="min-h-screen bg-[#94A3B8] dark:bg-[#020617] px-4 md:px-8 py-8 pb-24 no-scrollbar overflow-x-hidden selection:bg-primary/20">
-            <div className="max-w-[1400px] mx-auto space-y-8">
-                
-                {/* --- PREMIUM HEADER --- */}
-                <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center gap-4">
-                        <button onClick={() => setView('dashboard')} className="size-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center shadow-sm border border-slate-200 dark:border-slate-700 hover:scale-105 active:scale-95 transition-all text-slate-400 group">
-                            <span className="material-symbols-outlined text-2xl group-hover:text-primary transition-colors">arrow_back</span>
-                        </button>
-                        <div>
-                            <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2 leading-none">
-                                Business Intelligence <span className="text-primary text-xs font-bold bg-primary/10 px-2 py-1 rounded-lg uppercase tracking-widest ml-2">v2 PRO</span>
-                            </h1>
-                            <div className="flex items-center gap-3 mt-2">
-                                <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Dashboard de Gestão Estratégica</p>
-                            </div>
-                        </div>
-                    </div>
+        <div className="min-h-screen bg-slate-50 dark:bg-[#0f172a] px-4 md:px-6 py-6 pb-24 no-scrollbar overflow-x-hidden">
+            <div className="max-w-[1400px] mx-auto space-y-6">
 
+                {/* HEADER */}
+                <header className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => setIsFilterVisible(!isFilterVisible)}
-                            className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all duration-300 ${isFilterVisible ? 'bg-primary text-white shadow-xl shadow-primary/30' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-primary/50'}`}
-                        >
-                            <span className="material-symbols-outlined text-lg">tune</span>
-                            {isFilterVisible ? 'Ocultar Filtros' : 'Filtrar Dados'}
-                        </button>
+                        <button onClick={() => setView('dashboard')} className="size-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center shadow-sm border border-slate-200 dark:border-slate-700 hover:scale-105 active:scale-95 transition-all text-slate-400"><span className="material-symbols-outlined text-xl">arrow_back</span></button>
+                        <div>
+                            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">BI Dashboard <span className="text-[9px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md uppercase tracking-widest">PRO</span></h1>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1"><span className="size-1.5 bg-emerald-500 rounded-full animate-pulse" /> Visão Gerencial em Tempo Real</p>
+                        </div>
                     </div>
                 </header>
 
-                {/* --- QUICK STATS SECTION --- */}
-                {/* --- ROW 1: Main KPIs --- */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {/* Faturamento */}
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-                        <div className="absolute top-0 right-0 p-8 opacity-[0.03] dark:opacity-[0.07] scale-[2.5] group-hover:scale-[3] transition-transform duration-700 pointer-events-none">
-                            <span className="material-symbols-outlined text-primary text-9xl">payments</span>
-                        </div>
-                        <div className="relative z-10 flex flex-col h-full">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="size-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                                    <span className="material-symbols-outlined">account_balance_wallet</span>
+                {/* ROW 1 - KPI CARDS */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <KpiCard icon="payments" label="Faturamento Total" value={fmt(totalRevenue)} sub={`Online ${fmt(onlineRevenue)} · Presencial ${fmt(presencialRevenue)}`} gradient="from-slate-700 to-slate-900" onClick={() => setActiveModal('faturamento')} badge="Live" />
+                    <KpiCard icon="account_balance" label="À Vista vs A Prazo" value={fmt(cashRevenue)} sub={`A Prazo: ${fmt(termRevenue)}`} gradient="from-blue-500 to-blue-700" onClick={() => setActiveModal('avista')} />
+                    <KpiCard icon="credit_score" label="Parcelas Pendentes" value={fmt(pendingInstTotal)} sub={overdueTotal > 0 ? `⚠ ${fmt(overdueTotal)} em atraso` : 'Nenhuma em atraso'} gradient="from-amber-500 to-orange-600" onClick={() => setActiveModal('parcelas')} />
+                    <KpiCard icon="savings" label="Fechamento Caixa" value={fmt(closedAmount)} sub={`Falta prestar contas: ${fmt(unclosedAmount)}`} gradient={unclosedAmount > 0 ? 'from-red-500 to-rose-700' : 'from-emerald-500 to-teal-700'} onClick={() => setActiveModal('fechamento')} />
+                </div>
+
+                {/* ROW 2 - SECONDARY CARDS */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Formas de Pagamento */}
+                    <div onClick={() => setActiveModal('pagamento')} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all">
+                        <div className="flex items-center gap-2 mb-3"><span className="material-symbols-outlined text-indigo-500 text-lg">pie_chart</span><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Formas de Pagamento</p></div>
+                        <div className="space-y-2">
+                            {paymentBreakdown.slice(0, 3).map(([method, total]) => (
+                                <div key={method} className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">{method}</span>
+                                    <span className="text-[10px] font-black text-slate-900 dark:text-white">{fmt(total)}</span>
                                 </div>
-                                <span className="text-[10px] font-black text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-lg uppercase tracking-widest">Live</span>
-                            </div>
-                            <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1">Faturamento Bruto</p>
-                            <h2 className="text-2xl font-black text-slate-900 dark:text-white">R$ {stats.totalRevenue.toLocaleString()}</h2>
+                            ))}
+                            {paymentBreakdown.length > 3 && <p className="text-[9px] text-slate-400 text-center">+{paymentBreakdown.length - 3} mais...</p>}
+                        </div>
+                    </div>
+
+                    {/* Pendentes Entrega */}
+                    <div onClick={() => setActiveModal('entregas')} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all">
+                        <div className="flex items-center gap-2 mb-3"><span className="material-symbols-outlined text-amber-500 text-lg">local_shipping</span><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pendentes Entrega</p></div>
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-white">{pendingDeliveries.length}</h2>
+                        <p className="text-[10px] text-slate-400">pedidos aguardando entrega</p>
+                    </div>
+
+                    {/* Estoque */}
+                    <div onClick={() => setActiveModal('estoque')} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all">
+                        <div className="flex items-center gap-2 mb-3"><span className="material-symbols-outlined text-rose-500 text-lg">inventory_2</span><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Estoque</p></div>
+                        <div className="flex gap-4">
+                            <div><p className="text-xl font-black text-amber-500">{lowStock.length}</p><p className="text-[9px] text-slate-400">Baixo</p></div>
+                            <div><p className="text-xl font-black text-red-500">{criticalStock.length}</p><p className="text-[9px] text-slate-400">Crítico</p></div>
                         </div>
                     </div>
 
                     {/* Meta */}
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 relative group hover:scale-[1.02] transition-all duration-300">
-                        <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="size-10 bg-secondary/10 rounded-xl flex items-center justify-center text-secondary">
-                                    <span className="material-symbols-outlined">rocket_launch</span>
+                    <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center gap-2 mb-3"><span className="material-symbols-outlined text-emerald-500 text-lg">flag</span><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Meta Mensal</p></div>
+                        <div className="flex items-end gap-2 mb-2">
+                            <h2 className="text-xl font-black text-slate-900 dark:text-white">{goalPct.toFixed(0)}%</h2>
+                            <span className="text-[10px] font-bold text-slate-400 mb-0.5">{fmt(totalRevenue)} / {fmt(goal?.amount || 50000)}</span>
+                        </div>
+                        <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-1000 ${goalPct >= 80 ? 'bg-emerald-500' : goalPct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${goalPct}%` }} /></div>
+                    </div>
+                </div>
+
+                {/* ROW 3 - CHART + RANKINGS */}
+                <div className="grid grid-cols-12 gap-4">
+                    {/* GEO CHART */}
+                    <div className="col-span-12 lg:col-span-8 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center justify-between mb-5">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2"><span className="material-symbols-outlined text-indigo-500 text-lg">location_on</span> Vendas por {geoDrill.level === 'city' ? 'Cidade' : geoDrill.level === 'neighborhood' ? 'Bairro' : 'Cliente'}</h3>
+                                {geoDrill.level !== 'city' && <p className="text-[9px] text-slate-400 ml-7">{geoDrill.city}{geoDrill.neighborhood ? ` → ${geoDrill.neighborhood}` : ''}</p>}
+                            </div>
+                            {geoDrill.level !== 'city' && <button onClick={() => setGeoDrill(geoDrill.level === 'client' ? { level: 'neighborhood', city: geoDrill.city, neighborhood: null } : { level: 'city', city: null, neighborhood: null })} className="text-[9px] font-black text-primary bg-primary/10 px-3 py-1.5 rounded-lg hover:bg-primary hover:text-white transition-all">← Voltar</button>}
+                        </div>
+                        <div className="space-y-3">
+                            {geoItems.slice(0, 10).map((item, i) => (
+                                <div key={i} onClick={() => {
+                                    if (geoDrill.level === 'city') setGeoDrill({ level: 'neighborhood', city: item.name, neighborhood: null });
+                                    else if (geoDrill.level === 'neighborhood') setGeoDrill({ level: 'client', city: geoDrill.city, neighborhood: item.name });
+                                }} className={`group ${geoDrill.level !== 'client' ? 'cursor-pointer' : ''}`}>
+                                    <div className="flex justify-between items-center mb-1 px-1">
+                                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors truncate">{item.name}</span>
+                                        <div className="flex items-center gap-3"><span className="text-[9px] text-slate-400">{item.count}x</span><span className="text-[11px] font-black text-slate-900 dark:text-white">{fmt(item.total)}</span></div>
+                                    </div>
+                                    <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-indigo-500 to-primary rounded-full group-hover:brightness-110 transition-all duration-500" style={{ width: `${(item.total / geoMax) * 100}%` }} /></div>
                                 </div>
-                                <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${stats.goalPct >= 80 ? 'bg-emerald-50 text-emerald-500' : 'bg-amber-50 text-amber-500'}`}>
-                                    {stats.goalPct.toFixed(0)}%
-                                </span>
-                            </div>
-                            <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1">Progresso da Meta</p>
-                            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-3">R$ {stats.totalRevenue.toLocaleString()}</h2>
-                            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden">
-                                <div className="h-full bg-secondary rounded-full shadow-[0_0_10px_rgba(var(--secondary-rgb),0.5)] transition-all duration-1000" style={{ width: `${stats.goalPct}%` }} />
-                            </div>
+                            ))}
+                            {geoItems.length === 0 && <p className="text-sm text-slate-400 text-center py-8">Nenhum dado encontrado</p>}
                         </div>
                     </div>
 
-                    {/* Canais */}
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 hover:scale-[1.02] transition-all duration-300">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="size-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-500">
-                                <span className="material-symbols-outlined">hub</span>
-                            </div>
+                    {/* RANKINGS SIDEBAR */}
+                    <div className="col-span-12 lg:col-span-4 space-y-4">
+                        {/* Vendedores */}
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-amber-500 text-lg">emoji_events</span> Ranking Vendedores</h3>
+                            <div className="space-y-3">{sellerRanking.slice(0, 5).map((s, i) => <RankItem key={s.id} rank={i + 1} name={s.name} value={fmt(s.total)} max={sellerRanking[0]?.total || 1} current={s.total} color="amber-500" />)}</div>
+                            {sellerRanking.length === 0 && <p className="text-[10px] text-slate-400 text-center py-2">Sem vendas presenciais</p>}
                         </div>
-                        <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1">Distribuição por Canal</p>
-                        <div className="flex items-center justify-between gap-4 mt-2">
-                            <div className="flex-1">
-                                <p className="text-[8px] font-bold text-slate-400 uppercase">Online</p>
-                                <p className="text-sm font-black text-slate-900 dark:text-white">R$ {stats.onlineSales.toLocaleString()}</p>
-                            </div>
-                            <div className="w-[1px] h-8 bg-slate-100 dark:bg-slate-700" />
-                            <div className="flex-1 text-right">
-                                <p className="text-[8px] font-bold text-slate-400 uppercase">Presencial</p>
-                                <p className="text-sm font-black text-slate-900 dark:text-white">R$ {stats.presencialSales.toLocaleString()}</p>
-                            </div>
+                        {/* Entregadores */}
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-blue-500 text-lg">directions_bike</span> Ranking Entregadores</h3>
+                            <div className="space-y-3">{driverRanking.slice(0, 5).map((d, i) => <RankItem key={d.id} rank={i + 1} name={d.name} value={`${d.count} entregas`} max={driverRanking[0]?.count || 1} current={d.count} color="blue-500" />)}</div>
+                            {driverRanking.length === 0 && <p className="text-[10px] text-slate-400 text-center py-2">Sem entregas registradas</p>}
+                        </div>
+                        {/* Clientes */}
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-lg">group</span> Ranking Clientes</h3>
+                            <div className="space-y-3">{customerRanking.slice(0, 5).map((c, i) => <RankItem key={c.id} rank={i + 1} name={c.name} value={fmt(c.total)} max={customerRanking[0]?.total || 1} current={c.total} color="emerald-500" />)}</div>
                         </div>
                     </div>
+                </div>
 
-                    {/* Contas a Receber (Parcelamento) */}
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 hover:scale-[1.02] transition-all duration-300 group">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="size-10 bg-danger/10 rounded-xl flex items-center justify-center text-danger">
-                                <span className="material-symbols-outlined">receipt_long</span>
-                            </div>
-                        </div>
-                        <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1">Contas a Receber</p>
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-1">R$ {stats.outstanding.toLocaleString()}</h2>
-                        {stats.overdue > 0 && (
-                            <p className="text-[10px] font-bold text-danger flex items-center gap-1">
-                                <span className="size-1 bg-danger rounded-full animate-ping" />
-                                R$ {stats.overdue.toLocaleString()} em atraso
-                            </p>
+                {/* ROW 4 - DATA TABLES (Tabbed) */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                    <div className="flex border-b border-slate-100 dark:border-slate-700">
+                        <button onClick={() => setActiveTab('vendas')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'vendas' ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-slate-400 hover:text-slate-600'}`}><span className="material-symbols-outlined text-sm align-middle mr-1">receipt_long</span>Todas as Vendas</button>
+                        <button onClick={() => setActiveTab('parcelas')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'parcelas' ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-slate-400 hover:text-slate-600'}`}><span className="material-symbols-outlined text-sm align-middle mr-1">credit_score</span>Parcelas Pendentes {pendingInstallments.length > 0 && <span className="bg-red-500 text-white text-[8px] px-1.5 py-0.5 rounded-full ml-1">{pendingInstallments.length}</span>}</button>
+                    </div>
+                    <div className="overflow-x-auto">
+                        {activeTab === 'vendas' ? (
+                            <table className="w-full text-left"><thead><tr className="bg-slate-50/50 dark:bg-slate-900/50">
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Data</th>
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Cliente</th>
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Vendedor</th>
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Valor</th>
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Pagamento</th>
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Canal</th>
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Status</th>
+                            </tr></thead><tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                {[...activeSales].sort((a, b) => b.createdAt - a.createdAt).slice(0, 50).map(s => (
+                                    <tr key={s.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                        <td className="px-5 py-3 text-[10px] font-bold text-slate-500 whitespace-nowrap">{new Date(s.createdAt).toLocaleDateString('pt-BR')}</td>
+                                        <td className="px-5 py-3 text-[10px] font-bold text-slate-700 dark:text-white truncate max-w-[130px]">{s.customerName}</td>
+                                        <td className="px-5 py-3 text-[10px] text-slate-500 truncate max-w-[100px]">{s.sellerName || '-'}</td>
+                                        <td className="px-5 py-3 text-[11px] font-black text-slate-900 dark:text-white whitespace-nowrap">{fmt(s.total)}</td>
+                                        <td className="px-5 py-3"><span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${s.paymentMethod === PaymentMethod.TERM ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>{s.paymentMethod}</span></td>
+                                        <td className="px-5 py-3"><span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${s.channel === 'online' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{s.channel}</span></td>
+                                        <td className="px-5 py-3 text-right"><span className={`text-[8px] font-black px-2 py-1 rounded-lg inline-block ${s.status === OrderStatus.DELIVERED ? 'bg-emerald-500 text-white' : s.status === OrderStatus.CANCELLED ? 'bg-red-500 text-white' : 'bg-amber-400 text-white'}`}>{s.status}</span></td>
+                                    </tr>
+                                ))}
+                            </tbody></table>
+                        ) : (
+                            <table className="w-full text-left"><thead><tr className="bg-slate-50/50 dark:bg-slate-900/50">
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Vencimento</th>
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Cliente</th>
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Parcela</th>
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Valor</th>
+                                <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Status</th>
+                            </tr></thead><tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                {installmentDetails.slice(0, 50).map(inst => {
+                                    const isOverdue = inst.dueDate < Date.now();
+                                    return (
+                                        <tr key={inst.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                            <td className={`px-5 py-3 text-[10px] font-bold whitespace-nowrap ${isOverdue ? 'text-red-500' : 'text-slate-500'}`}>{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</td>
+                                            <td className="px-5 py-3 text-[10px] font-bold text-slate-700 dark:text-white truncate max-w-[130px]">{inst.customerName}</td>
+                                            <td className="px-5 py-3 text-[10px] text-slate-500">{inst.number}/{inst.totalInstallments}</td>
+                                            <td className="px-5 py-3 text-[11px] font-black text-slate-900 dark:text-white">{fmt(inst.amount)}</td>
+                                            <td className="px-5 py-3 text-right"><span className={`text-[8px] font-black px-2 py-1 rounded-lg ${isOverdue ? 'bg-red-500 text-white' : 'bg-amber-400 text-white'}`}>{isOverdue ? 'Atrasado' : 'Pendente'}</span></td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody></table>
                         )}
                     </div>
                 </div>
 
-                {/* --- ROW 2: Financial Breakdown --- */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {/* Já Recebido */}
-                    <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-[2.5rem] shadow-xl shadow-emerald-500/15 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-                        <div className="absolute top-0 right-0 p-6 opacity-10 scale-[2] pointer-events-none">
-                            <span className="material-symbols-outlined text-white text-7xl">check_circle</span>
+                {/* MODALS */}
+                {activeModal === 'faturamento' && (
+                    <Modal title="Faturamento Detalhado" icon="payments" color="from-slate-700 to-slate-900" onClose={() => setActiveModal(null)}>
+                        <div className="space-y-4">
+                            <div className="flex justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-xl"><span className="text-sm font-bold text-slate-600">Total Bruto</span><span className="text-sm font-black text-slate-900 dark:text-white">{fmt(totalRevenue)}</span></div>
+                            <div className="flex justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl"><span className="text-sm font-bold text-blue-600">Online</span><span className="text-sm font-black">{fmt(onlineRevenue)}</span></div>
+                            <div className="flex justify-between p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl"><span className="text-sm font-bold text-indigo-600">Presencial</span><span className="text-sm font-black">{fmt(presencialRevenue)}</span></div>
+                            <div className="border-t pt-3"><p className="text-[10px] text-slate-400 mb-2">Total de vendas: {activeSales.length}</p></div>
                         </div>
-                        <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="size-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                                    <span className="material-symbols-outlined text-white">savings</span>
+                    </Modal>
+                )}
+                {activeModal === 'avista' && (
+                    <Modal title="À Vista vs A Prazo" icon="account_balance" color="from-blue-500 to-blue-700" onClose={() => setActiveModal(null)}>
+                        <div className="space-y-4">
+                            <div className="flex justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl"><span className="text-sm font-bold text-emerald-600">À Vista</span><span className="text-sm font-black">{fmt(cashRevenue)}</span></div>
+                            <div className="flex justify-between p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl"><span className="text-sm font-bold text-indigo-600">A Prazo</span><span className="text-sm font-black">{fmt(termRevenue)}</span></div>
+                            <div className="border-t pt-3">
+                                <p className="text-[10px] text-slate-400 mb-1">Do valor a prazo:</p>
+                                <div className="flex justify-between p-2 rounded-lg"><span className="text-xs text-emerald-600">Já recebido (parcelas pagas)</span><span className="text-xs font-black">{fmt(paidInstTotal)}</span></div>
+                                <div className="flex justify-between p-2 rounded-lg"><span className="text-xs text-amber-600">Falta receber</span><span className="text-xs font-black">{fmt(pendingInstTotal)}</span></div>
+                            </div>
+                        </div>
+                    </Modal>
+                )}
+                {activeModal === 'parcelas' && (
+                    <Modal title="Parcelas Pendentes" icon="credit_score" color="from-amber-500 to-orange-600" onClose={() => setActiveModal(null)}>
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl text-center"><p className="text-lg font-black text-amber-600">{pendingInstallments.length}</p><p className="text-[9px] text-slate-400">Pendentes</p></div>
+                                <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-center"><p className="text-lg font-black text-red-600">{overdueInstallments.length}</p><p className="text-[9px] text-slate-400">Em Atraso</p></div>
+                            </div>
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {installmentDetails.slice(0, 20).map(inst => (
+                                    <div key={inst.id} className={`flex items-center justify-between p-3 rounded-xl ${inst.dueDate < Date.now() ? 'bg-red-50 dark:bg-red-900/10' : 'bg-slate-50 dark:bg-slate-900'}`}>
+                                        <div><p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{inst.customerName}</p><p className="text-[9px] text-slate-400">Vendedor: {inst.sellerName} · {new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p></div>
+                                        <span className="text-[11px] font-black text-slate-900 dark:text-white">{fmt(inst.amount)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </Modal>
+                )}
+                {activeModal === 'fechamento' && (
+                    <Modal title="Fechamento de Caixa" icon="savings" color={unclosedAmount > 0 ? 'from-red-500 to-rose-700' : 'from-emerald-500 to-teal-700'} onClose={() => setActiveModal(null)}>
+                        <div className="space-y-4">
+                            <div className="flex justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl"><span className="text-sm font-bold text-emerald-600">Caixa Fechado</span><span className="text-sm font-black">{fmt(closedAmount)}</span></div>
+                            <div className="flex justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-xl"><span className="text-sm font-bold text-red-600">Falta Prestar Contas</span><span className="text-sm font-black">{fmt(unclosedAmount)}</span></div>
+                            <div className="border-t pt-3"><p className="text-[10px] text-slate-400 mb-1">Total à vista: {fmt(cashRevenue)}</p></div>
+                        </div>
+                    </Modal>
+                )}
+                {activeModal === 'pagamento' && (
+                    <Modal title="Formas de Pagamento" icon="pie_chart" color="from-indigo-500 to-purple-700" onClose={() => setActiveModal(null)}>
+                        <div className="space-y-3">
+                            {paymentBreakdown.map(([method, total]) => {
+                                const pct = totalRevenue > 0 ? ((total / totalRevenue) * 100).toFixed(1) : '0';
+                                return (
+                                    <div key={method} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                                        <div className="flex items-center gap-3"><div className="h-2 w-2 rounded-full bg-indigo-500" /><span className="text-sm font-bold text-slate-600 dark:text-slate-300">{method}</span></div>
+                                        <div className="text-right"><span className="text-sm font-black text-slate-900 dark:text-white">{fmt(total)}</span><span className="text-[9px] text-slate-400 ml-2">{pct}%</span></div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </Modal>
+                )}
+                {activeModal === 'entregas' && (
+                    <Modal title="Entregas Pendentes" icon="local_shipping" color="from-amber-500 to-orange-600" onClose={() => setActiveModal(null)}>
+                        <div className="space-y-2 max-h-80 overflow-y-auto">
+                            {pendingDeliveries.slice(0, 20).map(d => (
+                                <div key={d.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                                    <div><p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{d.customerName}</p><p className="text-[9px] text-slate-400">{d.driverName || 'Sem motorista'} · {d.status}</p></div>
+                                    <span className={`text-[8px] font-black px-2 py-1 rounded-lg ${d.status === DeliveryStatus.IN_ROUTE ? 'bg-blue-500 text-white' : 'bg-amber-400 text-white'}`}>{d.status}</span>
                                 </div>
-                                <span className="text-[10px] font-black text-white/70 bg-white/15 px-2 py-1 rounded-lg uppercase tracking-widest backdrop-blur-sm">Confirmado</span>
-                            </div>
-                            <p className="text-[9px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Já Recebido</p>
-                            <h2 className="text-2xl font-black text-white">R$ {stats.paidAmount.toLocaleString()}</h2>
-                            <p className="text-[10px] font-bold text-white/60 mt-1">
-                                {stats.totalRevenue > 0 ? Math.round((stats.paidAmount / stats.totalRevenue) * 100) : 0}% do faturamento
-                            </p>
+                            ))}
+                            {pendingDeliveries.length === 0 && <p className="text-sm text-slate-400 text-center py-4">Nenhuma entrega pendente 🎉</p>}
                         </div>
-                    </div>
-
-                    {/* Sem Baixa (Vendedores) */}
-                    <div className="bg-gradient-to-br from-orange-500 to-amber-600 p-6 rounded-[2.5rem] shadow-xl shadow-orange-500/15 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-                        <div className="absolute top-0 right-0 p-6 opacity-10 scale-[2] pointer-events-none">
-                            <span className="material-symbols-outlined text-white text-7xl">warning</span>
+                    </Modal>
+                )}
+                {activeModal === 'estoque' && (
+                    <Modal title="Status do Estoque" icon="inventory_2" color="from-rose-500 to-red-700" onClose={() => setActiveModal(null)}>
+                        <div className="space-y-2">
+                            {stockItems.map(s => {
+                                const basket = baskets.find(b => b.id === s.basketModelId);
+                                const qty = Number(s.quantity || 0);
+                                return (
+                                    <div key={s.basketModelId} className={`flex items-center justify-between p-3 rounded-xl ${qty <= 5 ? 'bg-red-50 dark:bg-red-900/10' : qty <= 10 ? 'bg-amber-50 dark:bg-amber-900/10' : 'bg-slate-50 dark:bg-slate-900'}`}>
+                                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{basket?.name || 'Produto'}</span>
+                                        <span className={`text-sm font-black ${qty <= 5 ? 'text-red-500' : qty <= 10 ? 'text-amber-500' : 'text-emerald-500'}`}>{qty} un</span>
+                                    </div>
+                                );
+                            })}
                         </div>
-                        <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="size-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                                    <span className="material-symbols-outlined text-white">assignment_ind</span>
-                                </div>
-                                <span className="text-[10px] font-black text-white/70 bg-white/15 px-2 py-1 rounded-lg uppercase tracking-widest backdrop-blur-sm">Atenção</span>
-                            </div>
-                            <p className="text-[9px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Sem Baixa (Vendedores)</p>
-                            <h2 className="text-2xl font-black text-white">R$ {stats.unaccountedBySellers.toLocaleString()}</h2>
-                            <p className="text-[10px] font-bold text-white/60 mt-1">
-                                Vendas recebidas sem fechamento
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Pendente A Prazo */}
-                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-6 rounded-[2.5rem] shadow-xl shadow-blue-500/15 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-                        <div className="absolute top-0 right-0 p-6 opacity-10 scale-[2] pointer-events-none">
-                            <span className="material-symbols-outlined text-white text-7xl">credit_score</span>
-                        </div>
-                        <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="size-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                                    <span className="material-symbols-outlined text-white">credit_score</span>
-                                </div>
-                                <span className="text-[10px] font-black text-white/70 bg-white/15 px-2 py-1 rounded-lg uppercase tracking-widest backdrop-blur-sm">Parcelado</span>
-                            </div>
-                            <p className="text-[9px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Pendente A Prazo</p>
-                            <h2 className="text-2xl font-black text-white">R$ {stats.pendingFutureAmount.toLocaleString()}</h2>
-                            <p className="text-[10px] font-bold text-white/60 mt-1">
-                                Parcelas futuras a vencer
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Em Atraso */}
-                    <div className={`p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden group hover:scale-[1.02] transition-all duration-300 ${stats.overdueAmount > 0 ? 'bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/15' : 'bg-gradient-to-br from-slate-400 to-slate-500 shadow-slate-500/10'}`}>
-                        <div className="absolute top-0 right-0 p-6 opacity-10 scale-[2] pointer-events-none">
-                            <span className="material-symbols-outlined text-white text-7xl">schedule</span>
-                        </div>
-                        <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="size-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                                    <span className="material-symbols-outlined text-white">schedule</span>
-                                </div>
-                                {stats.overdueAmount > 0 && <span className="size-2 bg-white rounded-full animate-ping" />}
-                            </div>
-                            <p className="text-[9px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Em Atraso</p>
-                            <h2 className="text-2xl font-black text-white">R$ {stats.overdueAmount.toLocaleString()}</h2>
-                            <p className="text-[10px] font-bold text-white/60 mt-1">
-                                {stats.overdueAmount > 0 ? 'Parcelas vencidas' : 'Nenhuma parcela vencida'}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* --- FILTERS PANEL --- */}
-                {isFilterVisible && (
-                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 shadow-2xl animate-in slide-in-from-top-4 duration-500 space-y-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Período</label>
-                                <select 
-                                    value={filters.dateRange} 
-                                    onChange={(e) => {
-                                        const dr = e.target.value as any;
-                                        const now = new Date();
-                                        let start = filters.startDate;
-                                        let end = filters.endDate;
-
-                                        if (dr === 'today') {
-                                            start = formatDate(now);
-                                            end = formatDate(now);
-                                        } else if (dr === 'week') {
-                                            const weekAgo = new Date();
-                                            weekAgo.setDate(now.getDate() - 7);
-                                            start = formatDate(weekAgo);
-                                            end = formatDate(now);
-                                        } else if (dr === 'month') {
-                                            start = formatDate(startOfMonth(now));
-                                            end = formatDate(endOfMonth(now));
-                                        } else if (dr === 'year') {
-                                            start = formatDate(new Date(now.getFullYear(), 0, 1));
-                                            end = formatDate(new Date(now.getFullYear(), 11, 31));
-                                        }
-
-                                        setFilters(p => ({ ...p, dateRange: dr, startDate: start, endDate: end }));
-                                    }} 
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-5 py-4 text-sm font-bold shadow-inner"
-                                >
-                                    <option value="today">Hoje</option><option value="week">Últimos 7 Dias</option><option value="month">Mês Atual</option><option value="year">Ano Atual</option><option value="custom">Personalizado</option><option value="all">Todo Histórico</option>
-                                </select>
-                            </div>
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Vendedor</label>
-                                <select value={filters.sellerId} onChange={(e) => setFilters(p => ({ ...p, sellerId: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-5 py-4 text-sm font-bold shadow-inner text-slate-600 dark:text-slate-300">
-                                    <option value="all">Todos</option>
-                                    {team.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Canal de Venda</label>
-                                <select value={filters.channel} onChange={(e) => setFilters(p => ({ ...p, channel: e.target.value as any }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-5 py-4 text-sm font-bold shadow-inner text-slate-600 dark:text-slate-300">
-                                    <option value="all">Todos</option>
-                                    <option value="online">Online</option>
-                                    <option value="presencial">Presencial</option>
-                                </select>
-                            </div>
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Em Atraso</label>
-                                <select value={filters.overdueInstallmentsOnly} onChange={(e) => setFilters(p => ({ ...p, overdueInstallmentsOnly: e.target.value as any }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-5 py-4 text-sm font-bold shadow-inner text-slate-600 dark:text-slate-300">
-                                    <option value="all">Sim ou Não</option>
-                                    <option value="yes">Sim</option>
-                                    <option value="no">Não</option>
-                                </select>
-                            </div>
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Parcelado</label>
-                                <select value={filters.installmentFilter} onChange={(e) => setFilters(p => ({ ...p, installmentFilter: e.target.value as any }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-5 py-4 text-sm font-bold shadow-inner text-slate-600 dark:text-slate-300">
-                                    <option value="all">Sim ou Não</option>
-                                    <option value="yes">Sim</option>
-                                    <option value="no">Não</option>
-                                </select>
-                            </div>
-                            {filters.dateRange === 'custom' && (
-                                <div className="col-span-1 lg:col-span-2 grid grid-cols-2 gap-4">
-                                    <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Início</label><input type="date" value={filters.startDate} onChange={(e) => setFilters(p => ({ ...p, startDate: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-xs font-bold" /></div>
-                                    <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fim</label><input type="date" value={filters.endDate} onChange={(e) => setFilters(p => ({ ...p, endDate: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-3 text-xs font-bold" /></div>
-                                </div>
-                            )}
-                        </div>
-                        
-                        <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700">
-                            <button 
-                                onClick={() => setFilters({
-                                    dateRange: 'custom',
-                                    startDate: '2026-03-01',
-                                    endDate: '2026-03-31',
-                                    sellerId: 'all',
-                                    basketModelId: 'all',
-                                    paymentMethod: 'all',
-                                    channel: 'all',
-                                    driverId: 'all',
-                                    deliveryStatus: 'all',
-                                    customerRecurrence: 'all',
-                                    pendingDeliveriesOnly: false,
-                                    overdueInstallmentsOnly: 'all',
-                                    installmentFilter: 'all'
-                                })}
-                                className="flex items-center gap-2 px-6 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-danger/10 hover:text-danger text-slate-600 dark:text-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
-                            >
-                                <span className="material-symbols-outlined text-lg">filter_alt_off</span>
-                                Limpar Todos os Filtros
-                            </button>
-                        </div>
-                    </div>
+                    </Modal>
                 )}
 
-                {/* --- MAIN INSIGHTS GRID --- */}
-                <div className="grid grid-cols-12 gap-8">
-                    {/* DAILY TREND */}
-                    <div className="col-span-12 lg:col-span-8 space-y-8">
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 flex flex-col min-h-[450px]">
-                            <div className="flex items-center justify-between mb-8">
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
-                                        <span className="material-symbols-outlined text-primary">analytics</span> Tendência de Venda Diária
-                                    </h3>
-                                    <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest pl-8">Volume processado dia a dia</p>
-                                </div>
-
-                                <div className="flex items-center gap-2 p-1 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700">
-                                    <select 
-                                        value={new Date(filters.startDate + 'T00:00:00').getMonth()}
-                                        onChange={(e) => {
-                                            const m = parseInt(e.target.value);
-                                            const d = new Date(filters.startDate + 'T00:00:00');
-                                            const newStart = startOfMonth(new Date(d.getFullYear(), m, 1));
-                                            const newEnd = endOfMonth(newStart);
-                                            setFilters(prev => ({
-                                                ...prev,
-                                                startDate: formatDate(newStart),
-                                                endDate: formatDate(newEnd),
-                                                dateRange: 'custom'
-                                            }));
-                                        }}
-                                        className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest px-3 py-2 outline-none cursor-pointer text-slate-600 dark:text-slate-300"
-                                    >
-                                        {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, i) => (
-                                            <option key={i} value={i}>{m}</option>
-                                        ))}
-                                    </select>
-                                    <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
-                                    <select 
-                                        value={new Date(filters.startDate + 'T00:00:00').getFullYear()}
-                                        onChange={(e) => {
-                                            const y = parseInt(e.target.value);
-                                            const d = new Date(filters.startDate + 'T00:00:00');
-                                            const newStart = startOfMonth(new Date(y, d.getMonth(), 1));
-                                            const newEnd = endOfMonth(newStart);
-                                            setFilters(prev => ({
-                                                ...prev,
-                                                startDate: formatDate(newStart),
-                                                endDate: formatDate(newEnd),
-                                                dateRange: 'custom'
-                                            }));
-                                        }}
-                                        className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest px-3 py-2 outline-none cursor-pointer text-slate-600 dark:text-slate-300"
-                                    >
-                                        {[2024, 2025, 2026, 2027].map(y => (
-                                            <option key={y} value={y}>{y}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="flex-1 flex gap-4 pr-4">
-                                {/* Y-AXIS LABELS */}
-                                <div className="flex flex-col justify-between pt-4 pb-14 text-[9px] font-black text-slate-400 text-right w-12 tracking-tighter uppercase">
-                                    <span>R${(maxTrend).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                    <span>R${(maxTrend * 0.75).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                    <span>R${(maxTrend * 0.5).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                    <span>R${(maxTrend * 0.25).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                    <span>R$0</span>
-                                </div>
-
-                                <div className="flex-1 relative pt-4 pb-8">
-                                    {/* GRID LINES */}
-                                    <div className="absolute inset-x-0 top-4 bottom-8 border-l-2 border-b-2 border-slate-200 dark:border-slate-700 z-0" />
-                                    <div className="absolute inset-x-0 top-4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
-                                    <div className="absolute inset-x-0 top-1/4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
-                                    <div className="absolute inset-x-0 top-1/2 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
-                                    <div className="absolute inset-x-0 top-3/4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
-
-                                    {/* COLUMNS */}
-                                    <div className="flex items-end gap-[2px] h-full relative z-10 px-1" style={{ paddingBottom: '32px', paddingTop: '0' }}>
-                                        {dailyMonthTrend.map((m, i) => {
-                                            const heightPct = maxTrend > 0 ? Math.max(m.value > 0 ? 2 : 0, (m.value / maxTrend) * 100) : 0;
-                                            const formatVal = (v: number) => {
-                                                if (v === 0) return '';
-                                                if (v >= 1000) return `${(v / 1000).toFixed(1).replace('.0', '')}k`;
-                                                return v.toFixed(0);
-                                            };
-                                            return (
-                                                <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group/bar relative">
-                                                    {/* Value label */}
-                                                    {m.value > 0 && (
-                                                        <span className="text-[7px] font-black text-primary mb-0.5 opacity-80 group-hover/bar:opacity-100 transition-opacity whitespace-nowrap">
-                                                            {formatVal(m.value)}
-                                                        </span>
-                                                    )}
-                                                    {/* Tooltip on hover */}
-                                                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-all duration-200 z-30 bg-slate-900 text-white text-[8px] font-black px-2 py-1 rounded-lg shadow-lg whitespace-nowrap pointer-events-none">
-                                                        Dia {m.label}: R$ {m.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                    </div>
-                                                    {/* Bar */}
-                                                    <div
-                                                        className={`w-full rounded-t-sm transition-all duration-700 ease-out cursor-pointer ${
-                                                            m.value > 0
-                                                                ? 'bg-gradient-to-t from-primary to-blue-400 group-hover/bar:from-primary group-hover/bar:to-blue-300 shadow-sm shadow-primary/20'
-                                                                : 'bg-slate-100 dark:bg-slate-700/30'
-                                                        }`}
-                                                        style={{ height: `${heightPct}%`, minHeight: m.value > 0 ? '4px' : '1px' }}
-                                                    />
-                                                    {/* Day label */}
-                                                    <div className="absolute bottom-0 w-full text-center translate-y-6">
-                                                        <span className={`text-[8px] font-black transition-colors ${m.value > 0 ? 'text-slate-500 group-hover/bar:text-primary' : 'text-slate-300 dark:text-slate-600'}`}>
-                                                            {m.label}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* GEO INTELLIGENCE */}
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 min-h-[400px]">
-                            <div className="flex items-center justify-between mb-8">
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
-                                        <span className="material-symbols-outlined text-indigo-500">location_on</span> Presença Geográfica ({geoDrilldown.level === 'city' ? 'Cidades' : geoDrilldown.selectedCity})
-                                    </h3>
-                                    <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest pl-8">Distribuição por localidade</p>
-                                </div>
-                                {geoDrilldown.level === 'neighborhood' && <button onClick={() => setGeoDrilldown({ level: 'city', selectedCity: null })} className="px-4 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 hover:bg-primary hover:text-white transition-all">Voltar</button>}
-                            </div>
-                            <div className="space-y-4">
-                                {(geoDrilldown.level === 'city' ? stats.cityStats : stats.cityStats.find(c => c.name === geoDrilldown.selectedCity)?.neighborhoods || []).map((item, i) => (
-                                    <div key={i} onClick={() => geoDrilldown.level === 'city' && setGeoDrilldown({ level: 'neighborhood', selectedCity: item.name })} className="group cursor-pointer">
-                                        <div className="flex justify-between items-end mb-2 px-1"><span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wide group-hover:text-primary transition-colors">{item.name}</span><div className="flex items-center gap-3"><span className="text-[10px] font-bold text-slate-400">{item.count} Vendas</span><span className="text-xs font-black text-slate-900 dark:text-white">R$ {item.total.toLocaleString()}</span></div></div>
-                                        <div className="h-2 w-full bg-slate-50 dark:bg-slate-900 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-indigo-500 to-primary rounded-full group-hover:brightness-110 transition-all duration-1000" style={{ width: `${(item.total / (geoDrilldown.level === 'city' ? stats.totalRevenue : (stats.cityStats.find(c => c.name === geoDrilldown.selectedCity)?.total || 1))) * 100}%` }} /></div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* INSTALLMENT RECEIVABLES LINE CHART */}
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 flex flex-col min-h-[400px]">
-                            <div className="flex items-center justify-between mb-8">
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
-                                        <span className="material-symbols-outlined text-blue-500">credit_score</span> Parcelas a Receber
-                                    </h3>
-                                    <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest pl-8">
-                                        {installmentChartDrilldown.level === 'month' ? 'Visão mensal — clique para ver dias' : 'Visão diária'}
-                                    </p>
-                                </div>
-                                {installmentChartDrilldown.level === 'day' && (
-                                    <button
-                                        onClick={() => setInstallmentChartDrilldown({ level: 'month', selectedMonth: null, selectedYear: null })}
-                                        className="px-4 py-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 hover:bg-primary hover:text-white transition-all"
-                                    >
-                                        ← Voltar
-                                    </button>
-                                )}
-                            </div>
-
-                            <div className="flex-1 flex gap-4 pr-4">
-                                {/* Y Axis */}
-                                <div className="flex flex-col justify-between pt-4 pb-14 text-[9px] font-black text-slate-400 text-right w-14 tracking-tighter">
-                                    <span>R${maxInstallmentTrend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                    <span>R${(maxInstallmentTrend * 0.75).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                    <span>R${(maxInstallmentTrend * 0.5).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                    <span>R${(maxInstallmentTrend * 0.25).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                    <span>R$0</span>
-                                </div>
-
-                                <div className="flex-1 relative pt-4 pb-8">
-                                    {/* Grid */}
-                                    <div className="absolute inset-x-0 top-4 bottom-8 border-l-2 border-b-2 border-slate-200 dark:border-slate-700 z-0" />
-                                    <div className="absolute inset-x-0 top-4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
-                                    <div className="absolute inset-x-0 top-1/4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
-                                    <div className="absolute inset-x-0 top-1/2 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
-                                    <div className="absolute inset-x-0 top-3/4 h-px bg-slate-100 dark:bg-slate-700/30 z-0" />
-
-                                    {/* SVG Line */}
-                                    <svg className="absolute inset-x-0 top-4 bottom-8 w-full h-[calc(100%-48px)] pointer-events-none z-10" preserveAspectRatio="none" viewBox="0 0 100 100">
-                                        <defs>
-                                            <linearGradient id="instGrad" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3"/>
-                                                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/>
-                                            </linearGradient>
-                                        </defs>
-                                        {installmentTrendData.length > 1 && (
-                                            <>
-                                                <path
-                                                    d={`M ${installmentTrendData.map((d, i) => `${(i / (installmentTrendData.length - 1)) * 100} ${100 - (d.value / maxInstallmentTrend) * 100}`).join(' L ')} L 100 100 L 0 100 Z`}
-                                                    fill="url(#instGrad)"
-                                                />
-                                                <path
-                                                    d={`M ${installmentTrendData.map((d, i) => `${(i / (installmentTrendData.length - 1)) * 100} ${100 - (d.value / maxInstallmentTrend) * 100}`).join(' L ')}`}
-                                                    fill="none"
-                                                    stroke="#3b82f6"
-                                                    strokeWidth="3"
-                                                    strokeLinecap="round"
-                                                    vectorEffect="non-scaling-stroke"
-                                                />
-                                            </>
-                                        )}
-                                    </svg>
-
-                                    {/* Data Points & Labels */}
-                                    <div className="flex items-end justify-between h-full relative z-20">
-                                        {installmentTrendData.map((d, i) => {
-                                            const yPos = maxInstallmentTrend > 0 ? 100 - (d.value / maxInstallmentTrend) * 100 : 100;
-                                            return (
-                                                <div
-                                                    key={i}
-                                                    className="flex-1 flex flex-col items-center group/dot relative h-full cursor-pointer"
-                                                    onClick={() => {
-                                                        if (installmentChartDrilldown.level === 'month' && d.value > 0) {
-                                                            setInstallmentChartDrilldown({ level: 'day', selectedMonth: d.month, selectedYear: d.year });
-                                                        }
-                                                    }}
-                                                >
-                                                    {/* Tooltip */}
-                                                    <div className="absolute -translate-x-1/2 opacity-0 group-hover/dot:opacity-100 transition-all duration-200 z-30 bg-blue-600 text-white text-[8px] font-black px-2.5 py-1.5 rounded-xl shadow-lg whitespace-nowrap pointer-events-none" style={{ left: '50%', top: `${yPos - 5}%`, transform: 'translate(-50%, -100%)' }}>
-                                                        R$ {d.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                        {installmentChartDrilldown.level === 'month' && d.value > 0 && <span className="opacity-60 ml-1">🔍</span>}
-                                                    </div>
-                                                    {/* Dot */}
-                                                    <div
-                                                        className={`absolute size-3 rounded-full border-[3px] border-white dark:border-slate-800 transition-all duration-300 z-20 group-hover/dot:scale-[2] ${d.value > 0 ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-slate-200 dark:bg-slate-700'}`}
-                                                        style={{ top: `${yPos}%`, transform: 'translateY(-50%)' }}
-                                                    />
-                                                    {/* Label */}
-                                                    <div className="absolute bottom-0 w-full text-center translate-y-6">
-                                                        <span className={`text-[8px] font-black transition-colors ${d.value > 0 ? 'text-slate-500 group-hover/dot:text-blue-500' : 'text-slate-300'}`}>
-                                                            {d.label}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* SIDEBAR */}
-                    <div className="col-span-12 lg:col-span-4 space-y-8">
-                        {/* RANKING */}
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800">
-                            <h3 className="text-lg font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><span className="material-symbols-outlined text-secondary">emoji_events</span> Ranking de Equipe</h3>
-                            <div className="space-y-6">
-                                {stats.sellerStats.map((s, i) => (
-                                    <div key={s.id} className="flex items-center gap-4 group">
-                                        <div className={`size-8 rounded-xl flex items-center justify-center text-sm font-black shadow-sm ${i === 0 ? 'bg-secondary text-white' : 'bg-slate-100 dark:bg-slate-900 text-slate-400'}`}>{i+1}</div>
-                                        <div className="flex-1 min-w-0"><p className="text-[11px] font-black text-slate-900 dark:text-white truncate uppercase">{s.name}</p><p className="text-[10px] font-bold text-slate-400">R$ {s.total.toLocaleString()}</p></div>
-                                        <div className="w-16 h-1.5 bg-slate-50 dark:bg-slate-900 rounded-full overflow-hidden"><div className="h-full bg-secondary transition-all duration-1000" style={{ width: `${(s.total / (stats.sellerStats[0].total || 1)) * 100}%` }} /></div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* FINANCEIRO */}
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800">
-                            <h3 className="text-lg font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500">payments</span> Fluxo de Caixa</h3>
-                            <div className="space-y-4">
-                                <div className="p-4 bg-emerald-50 dark:bg-emerald-500/5 rounded-2xl border border-emerald-100 dark:border-emerald-500/10"><p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Recebido</p><p className="text-lg font-black text-slate-900 dark:text-white">R$ {stats.paidAmount.toLocaleString()}</p></div>
-                                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pendente</p><p className="text-lg font-black text-slate-900 dark:text-white">R$ {stats.pendingFutureAmount.toLocaleString()}</p></div>
-                                <div className={`p-4 rounded-2xl border ${stats.overdueAmount > 0 ? 'bg-danger/5 border-danger/20' : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-700'}`}><p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${stats.overdueAmount > 0 ? 'text-danger' : 'text-slate-400'}`}>Atrasado</p><p className="text-lg font-black text-slate-900 dark:text-white">R$ {stats.overdueAmount.toLocaleString()}</p></div>
-                            </div>
-                        </div>
-
-                        {/* ESTOQUE */}
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800">
-                            <h3 className="text-lg font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><span className="material-symbols-outlined text-warning">inventory_2</span> Status de Estoque</h3>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl"><p className="text-2xl font-black text-slate-900 dark:text-white">{stats.lowStockCount}</p><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Nível Baixo</p></div>
-                                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl"><p className="text-2xl font-black text-danger">{stats.criticalStockCount}</p><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Crítico</p></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {/* --- DETAILED SALES TABLE --- */}
-                <div className="bg-white dark:bg-slate-800 rounded-[3rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 dark:border-slate-800 overflow-hidden">
-                    <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                        <div>
-                            <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
-                                <span className="material-symbols-outlined text-primary">list_alt</span> Detalhamento de Vendas
-                            </h3>
-                            <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest pl-8">Lista completa filtrada</p>
-                        </div>
-                        <div className="px-4 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl text-[10px] font-black uppercase text-slate-400">
-                            {filteredSales.length} Registros Encontrados
-                        </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50/50 dark:bg-slate-900/50">
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">Data</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">Cliente</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">Bairro</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">Vendedor</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">Valor</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">Condição</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">Canal</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 text-right">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                                {filteredSales.slice(0, 50).map((sale) => {
-                                    const customer = customers.find(c => c.id === sale.customerId);
-                                    const isInstallment = sale.paymentMethod === PaymentMethod.TERM || (sale.installmentsCount || 0) > 1;
-                                    return (
-                                        <tr key={sale.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group">
-                                            <td className="px-8 py-4 text-[11px] font-bold text-slate-500 whitespace-nowrap">{new Date(sale.createdAt).toLocaleDateString('pt-BR')}</td>
-                                            <td className="px-8 py-4 text-[11px] font-black text-slate-900 dark:text-white uppercase truncate max-w-[150px]">{sale.customerName}</td>
-                                            <td className="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase">{customer?.neighborhood || 'N/I'}</td>
-                                            <td className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase truncate max-w-[120px]">{sale.sellerName || '-'}</td>
-                                            <td className="px-8 py-4 text-[12px] font-black text-slate-900 dark:text-white">R$ {sale.total.toLocaleString()}</td>
-                                            <td className="px-8 py-4">
-                                                <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-wider ${isInstallment ? 'bg-indigo-50 text-indigo-500 border border-indigo-100' : 'bg-emerald-50 text-emerald-500 border border-emerald-100'}`}>
-                                                    {isInstallment ? `Parcelado (${sale.installmentsCount}x)` : 'À Vista'}
-                                                </span>
-                                            </td>
-                                            <td className="px-8 py-4">
-                                                <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-wider ${sale.channel === 'online' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
-                                                    {sale.channel}
-                                                </span>
-                                            </td>
-                                            <td className="px-8 py-4 text-right">
-                                                <span className={`inline-flex items-center justify-center min-w-[90px] text-[9px] font-black px-3 py-1.5 rounded-xl uppercase tracking-tighter shadow-sm transition-all ${
-                                                    sale.status === OrderStatus.DELIVERED ? 'bg-emerald-500 text-white shadow-emerald-200' :
-                                                    sale.status === OrderStatus.CANCELLED || sale.status === OrderStatus.CANCELLATION_REQUESTED ? 'bg-danger text-white shadow-danger-200' :
-                                                    sale.status === OrderStatus.IN_DELIVERY || sale.status === OrderStatus.CONFIRMED ? 'bg-primary text-white shadow-primary-200' :
-                                                    'bg-amber-400 text-white shadow-amber-200'
-                                                }`}>
-                                                    {sale.status || 'Pendente'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                {filteredSales.length === 0 && (
-                                    <tr>
-                                        <td colSpan={8} className="px-8 py-20 text-center">
-                                            <span className="material-symbols-outlined text-4xl text-slate-200 mb-4">search_off</span>
-                                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Nenhuma venda encontrada para os filtros aplicados</p>
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div className="pt-12" />
+                <div className="h-8" />
             </div>
         </div>
     );
