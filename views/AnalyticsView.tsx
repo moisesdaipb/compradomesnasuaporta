@@ -37,6 +37,9 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     const [activeModal, setActiveModal] = React.useState<string | null>(null);
     const [activeTab, setActiveTab] = React.useState<'vendas' | 'parcelas'>('vendas');
     const [geoDrill, setGeoDrill] = React.useState<{ level: 'city' | 'neighborhood' | 'client'; city: string | null; neighborhood: string | null }>({ level: 'city', city: null, neighborhood: null });
+    const [chartMonth, setChartMonth] = React.useState(new Date().getMonth());
+    const [chartYear, setChartYear] = React.useState(new Date().getFullYear());
+    const [instDrill, setInstDrill] = React.useState<{ level: 'month' | 'day'; month: number | null; year: number | null }>({ level: 'month', month: null, year: null });
 
     // --- CORE DATA ---
     const activeSales = useMemo(() => sales.filter(s => s.status !== OrderStatus.CANCELLED), [sales]);
@@ -102,6 +105,39 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     // Goal
     const goal = useMemo(() => goals.find(g => g.type === 'geral' && g.period === 'mensal' && !g.isCancelled), [goals]);
     const goalPct = useMemo(() => Math.min(((totalRevenue / (goal?.amount || 50000)) * 100), 100), [totalRevenue, goal]);
+
+    // Daily sales trend
+    const dailyTrend = useMemo(() => {
+        const daysInMonth = new Date(chartYear, chartMonth + 1, 0).getDate();
+        return Array.from({ length: daysInMonth }, (_, i) => {
+            const dayNum = i + 1;
+            const daySales = activeSales.filter(s => { const d = new Date(s.createdAt); return d.getDate() === dayNum && d.getMonth() === chartMonth && d.getFullYear() === chartYear; });
+            return { label: dayNum.toString(), value: daySales.reduce((a, s) => a + s.total, 0) };
+        });
+    }, [activeSales, chartMonth, chartYear]);
+    const maxDailyTrend = Math.max(...dailyTrend.map(d => d.value), 100);
+
+    // Installment receivables trend
+    const instTrend = useMemo(() => {
+        const pending = installments.filter(i => i.status === InstallmentStatus.PENDING);
+        if (instDrill.level === 'month') {
+            const now = new Date();
+            const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+            return Array.from({ length: 12 }, (_, idx) => {
+                const d = new Date(now.getFullYear(), now.getMonth() - 11 + idx, 1);
+                const m = d.getMonth(); const y = d.getFullYear();
+                const start = new Date(y, m, 1).getTime(); const end = new Date(y, m + 1, 0, 23, 59, 59).getTime();
+                return { label: `${monthNames[m]}/${String(y).slice(2)}`, month: m, year: y, value: pending.filter(i => i.dueDate >= start && i.dueDate <= end).reduce((a, i) => a + i.amount, 0) };
+            });
+        }
+        const m = instDrill.month!; const y = instDrill.year!;
+        const days = new Date(y, m + 1, 0).getDate();
+        return Array.from({ length: days }, (_, i) => {
+            const start = new Date(y, m, i + 1).getTime(); const end = new Date(y, m, i + 1, 23, 59, 59).getTime();
+            return { label: String(i + 1), month: m, year: y, value: pending.filter(inst => inst.dueDate >= start && inst.dueDate <= end).reduce((a, inst) => a + inst.amount, 0) };
+        });
+    }, [installments, instDrill]);
+    const maxInstTrend = Math.max(...instTrend.map(d => d.value), 100);
 
     // Geo data with 3-level drill
     const geoData = useMemo(() => {
@@ -195,8 +231,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <KpiCard icon="payments" label="Faturamento Total" value={fmt(totalRevenue)} sub={`Online ${fmt(onlineRevenue)} · Presencial ${fmt(presencialRevenue)}`} gradient="from-slate-700 to-slate-900" onClick={() => setActiveModal('faturamento')} badge="Live" />
                     <KpiCard icon="account_balance" label="À Vista vs A Prazo" value={fmt(cashRevenue)} sub={`A Prazo: ${fmt(termRevenue)}`} gradient="from-blue-500 to-blue-700" onClick={() => setActiveModal('avista')} />
-                    <KpiCard icon="credit_score" label="Parcelas Pendentes" value={fmt(pendingInstTotal)} sub={overdueTotal > 0 ? `⚠ ${fmt(overdueTotal)} em atraso` : 'Nenhuma em atraso'} gradient="from-amber-500 to-orange-600" onClick={() => setActiveModal('parcelas')} />
-                    <KpiCard icon="savings" label="Fechamento Caixa" value={fmt(closedAmount)} sub={`Falta prestar contas: ${fmt(unclosedAmount)}`} gradient={unclosedAmount > 0 ? 'from-red-500 to-rose-700' : 'from-emerald-500 to-teal-700'} onClick={() => setActiveModal('fechamento')} />
+                    <KpiCard icon="credit_score" label="Parcelas Pendentes" value={fmt(pendingInstTotal)} sub={overdueTotal > 0 ? `⚠ ${fmt(overdueTotal)} em atraso` : 'Nenhuma em atraso'} gradient="from-violet-500 to-indigo-600" onClick={() => setActiveModal('parcelas')} />
+                    <KpiCard icon="savings" label="Prestação de Contas" value={fmt(unclosedAmount)} sub={`Já fechado: ${fmt(closedAmount)} de ${fmt(cashRevenue)}`} gradient={unclosedAmount > 0 ? 'from-slate-500 to-slate-700' : 'from-emerald-500 to-teal-600'} onClick={() => setActiveModal('fechamento')} badge={unclosedAmount > 0 ? 'Pendente' : '✓'} />
                 </div>
 
                 {/* ROW 2 - SECONDARY CARDS */}
@@ -239,6 +275,69 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                             <span className="text-[10px] font-bold text-slate-400 mb-0.5">{fmt(totalRevenue)} / {fmt(goal?.amount || 50000)}</span>
                         </div>
                         <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-1000 ${goalPct >= 80 ? 'bg-emerald-500' : goalPct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${goalPct}%` }} /></div>
+                    </div>
+                </div>
+
+                {/* CHARTS ROW */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* DAILY SALES COLUMN CHART */}
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2"><span className="material-symbols-outlined text-primary text-lg">bar_chart</span> Vendas Diárias</h3>
+                            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 rounded-xl p-1">
+                                <select value={chartMonth} onChange={e => setChartMonth(Number(e.target.value))} className="bg-transparent text-[9px] font-black uppercase tracking-widest px-2 py-1 outline-none cursor-pointer text-slate-600 dark:text-slate-300 border-none">
+                                    {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((m, i) => <option key={i} value={i}>{m}</option>)}
+                                </select>
+                                <select value={chartYear} onChange={e => setChartYear(Number(e.target.value))} className="bg-transparent text-[9px] font-black uppercase tracking-widest px-2 py-1 outline-none cursor-pointer text-slate-600 dark:text-slate-300 border-none">
+                                    {[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="h-[200px] flex items-end gap-[2px] px-1">
+                            {dailyTrend.map((d, i) => {
+                                const h = maxDailyTrend > 0 ? Math.max(d.value > 0 ? 3 : 0, (d.value / maxDailyTrend) * 100) : 0;
+                                const fmtShort = (v: number) => v >= 1000 ? `${(v/1000).toFixed(1).replace('.0','')}k` : v > 0 ? String(Math.round(v)) : '';
+                                return (
+                                    <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group/b relative">
+                                        {d.value > 0 && <span className="text-[6px] font-black text-primary mb-0.5 opacity-70 group-hover/b:opacity-100">{fmtShort(d.value)}</span>}
+                                        <div className="absolute -top-1 left-1/2 -translate-x-1/2 opacity-0 group-hover/b:opacity-100 z-30 bg-slate-900 text-white text-[7px] font-black px-1.5 py-0.5 rounded-md shadow-lg whitespace-nowrap pointer-events-none">Dia {d.label}: {fmt(d.value)}</div>
+                                        <div className={`w-full rounded-t-sm transition-all duration-500 cursor-pointer ${d.value > 0 ? 'bg-gradient-to-t from-primary to-blue-400 group-hover/b:to-blue-300 shadow-sm shadow-primary/20' : 'bg-slate-100 dark:bg-slate-700/30'}`} style={{ height: `${h}%`, minHeight: d.value > 0 ? '3px' : '1px' }} />
+                                        <span className={`text-[7px] font-bold mt-1 ${d.value > 0 ? 'text-slate-500' : 'text-slate-300'}`}>{d.label}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* INSTALLMENT RECEIVABLES LINE CHART */}
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2"><span className="material-symbols-outlined text-blue-500 text-lg">credit_score</span> Parcelas a Receber</h3>
+                                <p className="text-[8px] text-slate-400 ml-7">{instDrill.level === 'month' ? 'Clique num mês para ver dias' : 'Visão diária'}</p>
+                            </div>
+                            {instDrill.level === 'day' && <button onClick={() => setInstDrill({ level: 'month', month: null, year: null })} className="text-[9px] font-black text-primary bg-primary/10 px-3 py-1.5 rounded-lg hover:bg-primary hover:text-white transition-all">← Voltar</button>}
+                        </div>
+                        <div className="h-[200px] relative">
+                            {/* SVG Line */}
+                            <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" preserveAspectRatio="none" viewBox="0 0 100 100">
+                                <defs><linearGradient id="igrd" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25"/><stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/></linearGradient></defs>
+                                {instTrend.length > 1 && <><path d={`M ${instTrend.map((d, i) => `${(i / (instTrend.length - 1)) * 100} ${100 - (d.value / maxInstTrend) * 85}`).join(' L ')} L 100 100 L 0 100 Z`} fill="url(#igrd)" /><path d={`M ${instTrend.map((d, i) => `${(i / (instTrend.length - 1)) * 100} ${100 - (d.value / maxInstTrend) * 85}`).join(' L ')}`} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" /></>}
+                            </svg>
+                            {/* Data points */}
+                            <div className="flex items-end justify-between h-full relative z-20">
+                                {instTrend.map((d, i) => {
+                                    const yPct = maxInstTrend > 0 ? 100 - (d.value / maxInstTrend) * 85 : 100;
+                                    return (
+                                        <div key={i} className="flex-1 flex flex-col items-center group/d relative h-full cursor-pointer" onClick={() => { if (instDrill.level === 'month' && d.value > 0) setInstDrill({ level: 'day', month: d.month, year: d.year }); }}>
+                                            <div className="absolute -translate-x-1/2 opacity-0 group-hover/d:opacity-100 z-30 bg-blue-600 text-white text-[7px] font-black px-2 py-1 rounded-lg shadow-lg whitespace-nowrap pointer-events-none" style={{ left: '50%', top: `${yPct - 5}%`, transform: 'translate(-50%, -100%)' }}>{fmt(d.value)}</div>
+                                            <div className={`absolute size-2.5 rounded-full border-2 border-white dark:border-slate-800 z-20 group-hover/d:scale-[2] transition-all ${d.value > 0 ? 'bg-blue-500' : 'bg-slate-200'}`} style={{ top: `${yPct}%`, transform: 'translateY(-50%)' }} />
+                                            <div className="absolute bottom-0 w-full text-center translate-y-5"><span className={`text-[7px] font-bold ${d.value > 0 ? 'text-slate-500' : 'text-slate-300'}`}>{d.label}</span></div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
