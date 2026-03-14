@@ -40,9 +40,34 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     const [chartMonth, setChartMonth] = React.useState(new Date().getMonth());
     const [chartYear, setChartYear] = React.useState(new Date().getFullYear());
     const [instDrill, setInstDrill] = React.useState<{ level: 'month' | 'day'; month: number | null; year: number | null }>({ level: 'month', month: null, year: null });
+    const [showFilters, setShowFilters] = React.useState(false);
+    const [filters, setFilters] = React.useState<{
+        dateFrom: string; dateTo: string; seller: string; channel: string;
+        city: string; neighborhood: string; customer: string; payCategory: string; payMethod: string; overdue: string;
+    }>({ dateFrom: '', dateTo: '', seller: '', channel: '', city: '', neighborhood: '', customer: '', payCategory: '', payMethod: '', overdue: '' });
+    const clearFilters = () => setFilters({ dateFrom: '', dateTo: '', seller: '', channel: '', city: '', neighborhood: '', customer: '', payCategory: '', payMethod: '', overdue: '' });
+    const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
 
-    // --- CORE DATA ---
-    const activeSales = useMemo(() => sales.filter(s => s.status !== OrderStatus.CANCELLED), [sales]);
+    // --- CORE DATA (with filters applied) ---
+    const activeSales = useMemo(() => {
+        return sales.filter(s => s.status !== OrderStatus.CANCELLED).filter(s => {
+            if (filters.dateFrom) { const from = new Date(filters.dateFrom + 'T00:00:00').getTime(); if (s.createdAt < from) return false; }
+            if (filters.dateTo) { const to = new Date(filters.dateTo + 'T23:59:59').getTime(); if (s.createdAt > to) return false; }
+            if (filters.seller && s.sellerId !== filters.seller) return false;
+            if (filters.channel && s.channel !== filters.channel) return false;
+            if (filters.city) { const c = customers.find(cu => cu.id === s.customerId); if ((c?.city || '') !== filters.city) return false; }
+            if (filters.neighborhood) { const c = customers.find(cu => cu.id === s.customerId); if ((c?.neighborhood || '') !== filters.neighborhood) return false; }
+            if (filters.customer && s.customerId !== filters.customer) return false;
+            if (filters.payCategory === 'avista' && s.paymentMethod === PaymentMethod.TERM) return false;
+            if (filters.payCategory === 'prazo' && s.paymentMethod !== PaymentMethod.TERM) return false;
+            if (filters.payMethod && s.paymentMethod !== filters.payMethod && (s.paymentSubMethod || '') !== filters.payMethod) return false;
+            if (filters.overdue === 'sim') {
+                const hasOverdue = installments.some(i => i.saleId === s.id && i.status === InstallmentStatus.PENDING && i.dueDate < Date.now());
+                if (!hasOverdue) return false;
+            }
+            return true;
+        });
+    }, [sales, filters, customers, installments]);
     const totalRevenue = useMemo(() => activeSales.reduce((a, s) => a + s.total, 0), [activeSales]);
     const onlineRevenue = useMemo(() => activeSales.filter(s => s.channel === 'online').reduce((a, s) => a + s.total, 0), [activeSales]);
     const presencialRevenue = useMemo(() => activeSales.filter(s => s.channel === 'presencial').reduce((a, s) => a + s.total, 0), [activeSales]);
@@ -226,6 +251,40 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                         </div>
                     </div>
                 </header>
+
+                {/* FILTER BAR */}
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${showFilters || activeFilterCount > 0 ? 'bg-primary text-white shadow-lg shadow-primary/25' : 'bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 hover:border-primary hover:text-primary'}`}>
+                            <span className="material-symbols-outlined text-sm">tune</span> Filtros
+                            {activeFilterCount > 0 && <span className="size-5 bg-white/25 rounded-full flex items-center justify-center text-[9px]">{activeFilterCount}</span>}
+                        </button>
+                        {activeFilterCount > 0 && <button onClick={clearFilters} className="text-[9px] font-black text-red-500 hover:text-red-600 uppercase tracking-widest px-3 py-2">✕ Limpar</button>}
+                    </div>
+                    {showFilters && (
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 animate-in slide-in-from-top-2 duration-200">
+                            {/* Date Range */}
+                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Data Início</label><input type="date" value={filters.dateFrom} onChange={e => setFilters(p => ({ ...p, dateFrom: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary" /></div>
+                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Data Fim</label><input type="date" value={filters.dateTo} onChange={e => setFilters(p => ({ ...p, dateTo: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary" /></div>
+                            {/* Seller */}
+                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Vendedor</label><select value={filters.seller} onChange={e => setFilters(p => ({ ...p, seller: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todos</option>{team.filter(t => t.role === 'vendedor').map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
+                            {/* Channel */}
+                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Canal</label><select value={filters.channel} onChange={e => setFilters(p => ({ ...p, channel: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todos</option><option value="online">Online</option><option value="presencial">Presencial</option></select></div>
+                            {/* City */}
+                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Cidade</label><select value={filters.city} onChange={e => setFilters(p => ({ ...p, city: e.target.value, neighborhood: '' }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todas</option>{[...new Set(customers.map(c => c.city).filter(Boolean))].sort().map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                            {/* Neighborhood */}
+                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Bairro</label><select value={filters.neighborhood} onChange={e => setFilters(p => ({ ...p, neighborhood: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todos</option>{[...new Set(customers.filter(c => !filters.city || c.city === filters.city).map(c => c.neighborhood).filter(Boolean))].sort().map(n => <option key={n} value={n}>{n}</option>)}</select></div>
+                            {/* Customer */}
+                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Cliente</label><select value={filters.customer} onChange={e => setFilters(p => ({ ...p, customer: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todos</option>{customers.slice().sort((a, b) => a.name.localeCompare(b.name)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                            {/* Category */}
+                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Tipo Venda</label><select value={filters.payCategory} onChange={e => setFilters(p => ({ ...p, payCategory: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todos</option><option value="avista">À Vista</option><option value="prazo">A Prazo</option></select></div>
+                            {/* Payment Method */}
+                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Pagamento</label><select value={filters.payMethod} onChange={e => setFilters(p => ({ ...p, payMethod: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todos</option><option value="PIX">PIX</option><option value="Cartão">Cartão</option><option value="Dinheiro">Dinheiro</option><option value="Na Entrega">Na Entrega</option><option value="A Prazo">A Prazo</option></select></div>
+                            {/* Overdue */}
+                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Em Atraso</label><select value={filters.overdue} onChange={e => setFilters(p => ({ ...p, overdue: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todos</option><option value="sim">Apenas em atraso</option></select></div>
+                        </div>
+                    )}
+                </div>
 
                 {/* ROW 1 - KPI CARDS */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
