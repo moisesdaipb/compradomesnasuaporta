@@ -316,8 +316,8 @@ const Layout: React.FC<LayoutProps> = ({
           </div>
         </div>
       )}
-      {/* WhatsApp Floating Button - Globally available for all users */}
-      {settings?.whatsappNumber && (
+      {/* WhatsApp Floating Button - Only for online store (customers) */}
+      {isCustomer && settings?.whatsappNumber && (
         <a
           href={`https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}`}
           target="_blank"
