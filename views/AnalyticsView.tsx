@@ -57,13 +57,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     const paidInstTotal = useMemo(() => installments.filter(i => i.status === InstallmentStatus.PAID).reduce((a, i) => a + i.amount, 0), [installments]);
 
     // Closing
-    const closedSaleIds = useMemo(() => {
-        const ids = new Set<string>();
-        dailyClosings.filter(c => c.status === ClosingStatus.APPROVED || c.status === ClosingStatus.PENDING).forEach(c => (c.salesIds || []).forEach(id => ids.add(id)));
-        return ids;
+    // Closing — use the amounts reported in each closing directly
+    const closedAmount = useMemo(() => {
+        return dailyClosings
+            .filter(c => c.status === ClosingStatus.APPROVED || c.status === ClosingStatus.PENDING)
+            .reduce((a, c) => a + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0);
     }, [dailyClosings]);
-    const closedAmount = useMemo(() => activeSales.filter(s => s.paymentMethod !== PaymentMethod.TERM && closedSaleIds.has(s.id)).reduce((a, s) => a + s.total, 0), [activeSales, closedSaleIds]);
-    const unclosedAmount = useMemo(() => cashRevenue - closedAmount, [cashRevenue, closedAmount]);
+    const unclosedAmount = useMemo(() => Math.max(0, (totalRevenue - termRevenue) - closedAmount), [totalRevenue, termRevenue, closedAmount]);
 
     // Payment methods
     const paymentBreakdown = useMemo(() => {
