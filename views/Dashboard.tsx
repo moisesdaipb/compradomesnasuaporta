@@ -14,6 +14,7 @@ import {
   UserRole,
   OrderStatus,
   SaleGoal,
+  PaymentMethod,
 } from '../types';
 import { getStockQuantity } from '../store';
 import { DAILY_GOAL } from '../constants';
