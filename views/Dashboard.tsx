@@ -166,23 +166,24 @@ const Dashboard: React.FC<DashboardProps> = ({
     const activeSales = sales.filter(s => s.status !== OrderStatus.CANCELLED);
     const totalSoldAll = activeSales.reduce((acc, s) => acc + s.total, 0);
 
-    // Sales IDs in approved closings
-    const approvedClosings = dailyClosings.filter(c => c.status === ClosingStatus.APPROVED);
+    // Sales IDs in approved/pending closings (money already out of seller hands)
+    const validClosings = dailyClosings.filter(c => c.status === ClosingStatus.APPROVED || c.status === ClosingStatus.PENDING);
     const closedSaleIds = new Set<string>();
-    approvedClosings.forEach(c => {
+    validClosings.forEach(c => {
       (c.salesIds || []).forEach(id => closedSaleIds.add(id));
     });
 
-    // Total from approved closings
-    const totalFromClosings = approvedClosings.reduce((acc, c) =>
-      acc + c.cashAmount + c.cardAmount + c.pixAmount, 0
+    // Total from approved/pending closings
+    const totalFromClosings = validClosings.reduce((acc, c) =>
+      acc + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0
     );
 
-    // Installments
-    const paidInstallments = installments.filter(i => i.status === InstallmentStatus.PAID);
-    const totalInstallmentsPaid = paidInstallments.reduce((acc, i) => acc + i.amount, 0);
-    const pendingInstallmentsArr = installments.filter(i => i.status === InstallmentStatus.PENDING);
-    const totalInstallmentsPending = pendingInstallmentsArr.reduce((acc, i) => acc + i.amount, 0);
+    // Installments (ONLY for active sales)
+    const activeSaleIds = new Set(activeSales.map(s => s.id));
+    const paidInstallments = installments.filter(i => i.status === InstallmentStatus.PAID && activeSaleIds.has(i.saleId));
+    const totalInstallmentsPaid = paidInstallments.reduce((acc, i) => acc + (i.amount || 0), 0);
+    const pendingInstallmentsArr = installments.filter(i => i.status === InstallmentStatus.PENDING && activeSaleIds.has(i.saleId));
+    const totalInstallmentsPending = pendingInstallmentsArr.reduce((acc, i) => acc + (i.amount || 0), 0);
 
     const totalReceived = totalFromClosings + totalInstallmentsPaid;
     const totalPending = Math.max(0, totalSoldAll - totalReceived);
