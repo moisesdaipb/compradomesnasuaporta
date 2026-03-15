@@ -163,36 +163,43 @@ const Dashboard: React.FC<DashboardProps> = ({
   const financialOverview = useMemo(() => {
     if (userRole !== 'gerente') return null;
 
-    const activeSales = sales.filter(s => s.status !== OrderStatus.CANCELLED);
-    const totalSoldAll = activeSales.reduce((acc, s) => acc + s.total, 0);
-
-    // Sales IDs in approved/pending closings (money already out of seller hands)
+    // -------------------------------------------------------------------
+    // FINANCIAL CALCULATIONS (Managerial View: Matching BI Logic)
+    // -------------------------------------------------------------------
+    
+    // 1. Identify all sales accounted for in validated closings (Approved or Pending)
     const validClosings = dailyClosings.filter(c => c.status === ClosingStatus.APPROVED || c.status === ClosingStatus.PENDING);
     const closedSaleIds = new Set<string>();
     validClosings.forEach(c => {
       (c.salesIds || []).forEach(id => closedSaleIds.add(id));
     });
 
-    // Total from approved/pending closings
-    const totalFromClosings = validClosings.reduce((acc, c) =>
-      acc + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0
-    );
+    // 2. Identify all active sales (excluding cancelled)
+    const activeSalesInternal = sales.filter(s => s.status !== OrderStatus.CANCELLED);
+    const totalSoldAll = activeSalesInternal.reduce((acc, s) => acc + (s.total || 0), 0);
 
-    // Installments (ONLY for active sales)
-    const activeSaleIds = new Set(activeSales.map(s => s.id));
-    const paidInstallments = installments.filter(i => i.status === InstallmentStatus.PAID && activeSaleIds.has(i.saleId));
-    const totalInstallmentsPaid = paidInstallments.reduce((acc, i) => acc + (i.amount || 0), 0);
-    const pendingInstallmentsArr = installments.filter(i => i.status === InstallmentStatus.PENDING && activeSaleIds.has(i.saleId));
+    // 3. To Receive = (Cash Sales not in Closings) + (Unpaid installments for active sales)
+    const unclosedCashSales = activeSalesInternal.filter(s => 
+      s.paymentMethod !== PaymentMethod.TERM && !closedSaleIds.has(s.id)
+    );
+    const totalUnclosedCash = unclosedCashSales.reduce((acc, s) => acc + (s.total || 0), 0);
+
+    const activeSaleIds = new Set(activeSalesInternal.map(s => s.id));
+    const pendingInstallmentsArr = installments.filter(i => 
+      i.status === InstallmentStatus.PENDING && activeSaleIds.has(i.saleId)
+    );
     const totalInstallmentsPending = pendingInstallmentsArr.reduce((acc, i) => acc + (i.amount || 0), 0);
 
-    const totalReceived = totalFromClosings + totalInstallmentsPaid;
-    const totalPending = Math.max(0, totalSoldAll - totalReceived);
+    const totalPending = totalUnclosedCash + totalInstallmentsPending;
+
+    // 4. Derived Received
+    const totalReceived = Math.max(0, totalSoldAll - totalPending);
     const receivedPercent = totalSoldAll > 0 ? Math.min(100, Math.round((totalReceived / totalSoldAll) * 100)) : 0;
 
     // Per-seller accountability
     const sellerMap = new Map<string, { name: string; unclosedTotal: number; unclosedCount: number }>();
-    activeSales.forEach(sale => {
-      if (!sale.sellerId || closedSaleIds.has(sale.id)) return;
+    activeSalesInternal.forEach(sale => {
+      if (!sale.sellerId || sale.paymentMethod === PaymentMethod.TERM || closedSaleIds.has(sale.id)) return;
       const existing = sellerMap.get(sale.sellerId);
       if (existing) {
         existing.unclosedTotal += sale.total;
