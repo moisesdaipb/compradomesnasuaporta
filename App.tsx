@@ -1148,9 +1148,38 @@ const App: React.FC = () => {
       console.error('[App] handleUpdateSale error:', error);
       alert('Erro ao atualizar venda: ' + error.message);
     } finally {
-      setLoadingStatus('');
+      setLoadingStatus('Sincronizado');
     }
   }, [triggerRefresh]);
+
+  const handleUpdateInstallments = useCallback(async (
+    saleId: string,
+    installments: any[]
+  ) => {
+    try {
+      setLoadingStatus('Atualizando parcelas...');
+      // We use updateCompleteSale with only the installments. 
+      // The RPC should be robust enough to handle partial updates or we pass existing sale data.
+      const sale = appData.sales.find(s => s.id === saleId);
+      if (!sale) throw new Error('Venda não encontrada');
+
+      const saleData = {
+        customer_id: sale.customerId,
+        total: sale.total,
+        payment_method: sale.paymentMethod,
+        status: sale.status,
+        notes: sale.notes
+      };
+
+      await updateCompleteSale(saleId, saleData, sale.items, installments);
+      triggerRefresh(100);
+    } catch (error: any) {
+      console.error('[App] handleUpdateInstallments error:', error);
+      alert('Erro ao atualizar parcelas: ' + error.message);
+    } finally {
+      setLoadingStatus('Sincronizado');
+    }
+  }, [appData.sales, triggerRefresh]);
 
   const handleCancelOrder = useCallback(async (saleId: string, status: OrderStatus = OrderStatus.CANCELLED) => {
     try {
@@ -1704,6 +1733,7 @@ const App: React.FC = () => {
             userRole={session?.role || 'cliente'}
             userId={session?.id || ''}
             onPayInstallment={handlePayInstallment}
+            onUpdateInstallments={handleUpdateInstallments}
             setView={setView}
           />
         );

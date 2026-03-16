@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
 import { ViewState, Installment, InstallmentStatus, PaymentMethod, Sale, OrderStatus } from '../types';
+import PartialPaymentModal from '../components/PartialPaymentModal';
 
 interface InstallmentsViewProps {
     installments: Installment[];
@@ -7,6 +7,7 @@ interface InstallmentsViewProps {
     userRole: string;
     userId: string;
     onPayInstallment: (id: string, paymentMethod: PaymentMethod) => void;
+    onUpdateInstallments: (saleId: string, updatedInstallments: any[]) => Promise<void>;
     setView: (v: ViewState) => void;
 }
 
@@ -16,12 +17,14 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
     userRole,
     userId,
     onPayInstallment,
+    onUpdateInstallments,
     setView,
 }) => {
     const [filter, setFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('pending');
     const [searchQuery, setSearchQuery] = useState('');
     const [payingId, setPayingId] = useState<string | null>(null);
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+    const [partialPaymentInst, setPartialPaymentInst] = useState<Installment | null>(null);
 
     // Update overdue status
     const today = Date.now();
@@ -240,12 +243,22 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                                                                 <span className="text-[10px] font-bold text-slate-500 mt-1">{method.label}</span>
                                                             </button>
                                                         ))}
-                                                        <button
-                                                            onClick={() => setPayingId(null)}
-                                                            className="col-span-3 text-[10px] font-bold text-slate-400 py-1"
-                                                        >
-                                                            Cancelar
-                                                        </button>
+                                                            <button
+                                                                onClick={() => setPayingId(null)}
+                                                                className="col-span-2 text-[10px] font-bold text-slate-400 py-1"
+                                                            >
+                                                                Cancelar
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setPartialPaymentInst(installment);
+                                                                    setPayingId(null);
+                                                                }}
+                                                                className="col-span-1 text-[10px] font-bold text-blue-500 py-1 flex items-center justify-center gap-1"
+                                                            >
+                                                                <span className="material-symbols-outlined text-xs">edit_note</span>
+                                                                Valor Diferente
+                                                            </button>
                                                     </div>
                                                 )}
                                             </>
@@ -274,6 +287,17 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                     })
                 )}
             </div>
+
+            {/* Partial Payment Modal */}
+            {partialPaymentInst && (
+                <PartialPaymentModal
+                    sale={sales.find(s => s.id === partialPaymentInst.saleId)!}
+                    installment={partialPaymentInst}
+                    allInstallments={installments}
+                    onClose={() => setPartialPaymentInst(null)}
+                    onSave={onUpdateInstallments}
+                />
+            )}
         </div>
     );
 };
