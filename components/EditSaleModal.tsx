@@ -80,11 +80,23 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({
         setEditableInstallments(newInsts);
     };
 
+    const redistributionInProgress = false; // Flag for future use if needed
+
+    const installmentsSum = paymentMethod === PaymentMethod.TERM 
+        ? Math.round(editableInstallments.reduce((acc, inst) => acc + inst.amount, 0) * 100) / 100
+        : parseFloat(total);
+
+    const totalVal = parseFloat(total) || 0;
+    const difference = Math.round((totalVal - installmentsSum) * 100) / 100;
+    const isTotalValid = paymentMethod !== PaymentMethod.TERM || Math.abs(difference) < 0.01;
+
     const handleSave = () => {
+        if (!isTotalValid) return;
+
         const updatedSaleData: Partial<Sale> = {
             customerId,
             customerName: customers.find(c => c.id === customerId)?.name || sale.customerName,
-            total: parseFloat(total),
+            total: totalVal,
             paymentMethod,
             notes,
         };
@@ -227,19 +239,49 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({
                     </div>
                 </div>
 
-                <div className="p-6 bg-slate-50 dark:bg-slate-800/30 flex gap-3">
-                    <button
-                        onClick={onClose}
-                        className="flex-1 h-12 rounded-xl font-bold text-slate-500 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 active:scale-95 transition-all"
-                    >
-                        Cancelar
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        className="flex-[2] h-12 rounded-xl font-bold text-white bg-primary shadow-lg shadow-primary/20 active:scale-95 transition-all"
-                    >
-                        Salvar Alterações
-                    </button>
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/30 space-y-3">
+                    {paymentMethod === PaymentMethod.TERM && !isTotalValid && (
+                        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl mb-3 flex items-center gap-3 animate-in slide-in-from-top-2 duration-300">
+                            <span className="material-symbols-outlined text-amber-500">warning</span>
+                            <div className="flex-1">
+                                <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                                    Soma das parcelas não bate com o total.
+                                </p>
+                                <p className="text-[10px] font-medium text-amber-600 dark:text-amber-500">
+                                    {difference > 0 
+                                        ? `Faltam R$ ${difference.toFixed(2)}` 
+                                        : `Soma excedeu R$ ${Math.abs(difference).toFixed(2)}`
+                                    }
+                                </p>
+                            </div>
+                            <button 
+                                onClick={redistributeTotal}
+                                className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase shadow-sm"
+                            >
+                                Ajustar
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3">
+                        <button
+                            onClick={onClose}
+                            className="flex-1 h-12 rounded-xl font-bold text-slate-500 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 active:scale-95 transition-all"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={!isTotalValid}
+                            className={`flex-[2] h-12 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-all ${
+                                isTotalValid 
+                                ? 'bg-primary shadow-primary/20' 
+                                : 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed'
+                            }`}
+                        >
+                            {isTotalValid ? 'Salvar Alterações' : 'Ajustar Totais'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
