@@ -337,7 +337,7 @@ const ManagerSalesView: React.FC<ManagerSalesViewProps> = ({
             )}
 
             {/* Detailed Order Modal */}
-            {selectedSale && (
+            {selectedSale && !isEditing && (
                 <div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-300">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedSale(null)} />
 
