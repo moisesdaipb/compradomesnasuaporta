@@ -30,6 +30,7 @@ import {
 } from './types';
 import { APP_STORAGE_KEY, SESSION_STORAGE_KEY, BASKET_IMAGES, AVATAR_IMAGES, DEFAULT_LOCATION } from './constants';
 import { supabase } from './supabase';
+import { parseDBDate } from './utils';
 
 // ============================================
 // DADOS INICIAIS (MOCK)
@@ -357,7 +358,7 @@ export const fetchDeliveries = async (): Promise<Delivery[]> => {
     driverId: d.driver_id,
     driverName: d.driver_name,
     status: d.status,
-    createdAt: new Date(d.created_at).getTime(),
+    createdAt: parseDBDate(d.created_at),
     assignedAt: d.assigned_at ? new Date(d.assigned_at).getTime() : undefined,
     deliveredAt: d.delivered_at ? new Date(d.delivered_at).getTime() : undefined,
     notes: d.notes
@@ -379,7 +380,7 @@ export const fetchInstallments = async (): Promise<Installment[]> => {
     number: i.number,
     totalInstallments: i.total_installments,
     amount: i.amount || 0,
-    dueDate: new Date(i.due_date).getTime(),
+    dueDate: parseDBDate(i.due_date),
     status: (() => {
       const s = i.status?.toLowerCase()?.trim();
       if (!s) return InstallmentStatus.PENDING; // Default to PENDING if null/empty

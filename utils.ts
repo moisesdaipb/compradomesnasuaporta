@@ -46,3 +46,20 @@ export const validateCPF = (cpf: string): boolean => {
 
     return true;
 };
+
+/**
+ * Converte uma string de data do banco (YYYY-MM-DD) para um timestamp
+ * tratando-a como data local para evitar deslocamentos de fuso horário.
+ */
+export const parseDBDate = (dateStr: string): number => {
+    if (!dateStr) return Date.now();
+    // Se já for um timestamp ou ISO com tempo, usa o construtor padrão
+    if (dateStr.includes('T') || !isNaN(Number(dateStr))) {
+        return new Date(dateStr).getTime();
+    }
+    
+    // Para strings "YYYY-MM-DD", quebramos as partes para evitar o shift do fuso UTC
+    const [year, month, day] = dateStr.split('-').map(Number);
+    // month - 1 porque no JS os meses vão de 0 a 11
+    return new Date(year, month - 1, day).getTime();
+};
