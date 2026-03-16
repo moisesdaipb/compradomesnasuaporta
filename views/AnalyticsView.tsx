@@ -43,6 +43,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     const [instDrill, setInstDrill] = React.useState<{ level: 'month' | 'day'; month: number | null; year: number | null }>({ level: 'month', month: null, year: null });
     const [showFilters, setShowFilters] = React.useState(false);
     const [selectedSaleId, setSelectedSaleId] = React.useState<string | null>(null);
+    const [instTab, setInstTab] = React.useState<'all' | 'pending' | 'overdue'>('all');
     const [datePreset, setDatePreset] = React.useState<'mes' | '60' | '90' | 'tudo' | 'custom'>('tudo');
     const [filters, setFilters] = React.useState<{
         dateFrom: string; dateTo: string; seller: string; channel: string;
@@ -592,23 +593,54 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                     </Modal>
                 )}
                 {activeModal === 'parcelas' && (
-                    <Modal title="Parcelas Pendentes" icon="credit_score" color="from-amber-500 to-orange-600" onClose={() => setActiveModal(null)}>
+                    <Modal title="Parcelas Pendentes" icon="credit_score" color="from-amber-500 to-orange-600" onClose={() => { setActiveModal(null); setInstTab('all'); }}>
                         <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl text-center"><p className="text-lg font-black text-amber-600">{pendingInstallments.length}</p><p className="text-[9px] text-slate-400">Pendentes</p></div>
-                                <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-center"><p className="text-lg font-black text-red-600">{overdueInstallments.length}</p><p className="text-[9px] text-slate-400">Em Atraso</p></div>
+                            <div className="grid grid-cols-3 gap-2 mb-4">
+                                <button onClick={() => setInstTab('all')} className={`p-3 rounded-xl text-center border-2 transition-all ${instTab === 'all' ? 'bg-slate-100 dark:bg-slate-900 border-primary' : 'bg-transparent border-transparent'}`}>
+                                    <p className="text-lg font-black text-slate-700 dark:text-slate-200">{pendingInstallments.length}</p>
+                                    <p className="text-[8px] text-slate-400 uppercase font-black">Total</p>
+                                </button>
+                                <button onClick={() => setInstTab('pending')} className={`p-3 rounded-xl text-center border-2 transition-all ${instTab === 'pending' ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-500' : 'bg-transparent border-transparent'}`}>
+                                    <p className="text-lg font-black text-amber-600">{(pendingInstallments.length - overdueInstallments.length)}</p>
+                                    <p className="text-[8px] text-slate-400 uppercase font-black">No Prazo</p>
+                                </button>
+                                <button onClick={() => setInstTab('overdue')} className={`p-3 rounded-xl text-center border-2 transition-all ${instTab === 'overdue' ? 'bg-red-50 dark:bg-red-900/20 border-red-500' : 'bg-transparent border-transparent'}`}>
+                                    <p className="text-lg font-black text-red-600">{overdueInstallments.length}</p>
+                                    <p className="text-[8px] text-slate-400 uppercase font-black">Em Atraso</p>
+                                </button>
                             </div>
-                            <div className="space-y-2 max-h-64 overflow-y-auto">
-                                {installmentDetails.slice(0, 20).map(inst => (
-                                    <div 
-                                        key={inst.id} 
-                                        onClick={() => setSelectedSaleId(inst.saleId)}
-                                        className={`flex items-center justify-between p-3 rounded-xl cursor-pointer hover:brightness-95 active:scale-[0.98] transition-all ${inst.dueDate < Date.now() ? 'bg-red-50 dark:bg-red-900/10' : 'bg-slate-50 dark:bg-slate-900'}`}
-                                    >
-                                        <div><p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{inst.customerName}</p><p className="text-[9px] text-slate-400">Vendedor: {inst.sellerName} · {new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p></div>
-                                        <span className="text-[11px] font-black text-slate-900 dark:text-white">{fmt(inst.amount)}</span>
-                                    </div>
-                                ))}
+                            <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+                                {installmentDetails
+                                    .filter(inst => {
+                                        if (instTab === 'pending') return inst.dueDate >= Date.now();
+                                        if (instTab === 'overdue') return inst.dueDate < Date.now();
+                                        return true;
+                                    })
+                                    .slice(0, 50).map(inst => {
+                                        const isOverdue = inst.dueDate < Date.now();
+                                        return (
+                                            <div 
+                                                key={inst.id} 
+                                                onClick={() => setSelectedSaleId(inst.saleId)}
+                                                className={`flex items-center justify-between p-3 rounded-xl cursor-pointer hover:brightness-95 active:scale-[0.98] transition-all border ${isOverdue ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30' : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800'}`}
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                        <p className="text-[11px] font-black text-slate-700 dark:text-slate-200 truncate">{inst.customerName}</p>
+                                                        <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest ${isOverdue ? 'bg-red-500 text-white animate-pulse' : 'bg-amber-500 text-white'}`}>
+                                                            {isOverdue ? 'Atrasada' : 'Pendente'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[9px] text-slate-400 font-bold">Vendedor: {inst.sellerName} · <span className={isOverdue ? 'text-red-500' : ''}>{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</span></p>
+                                                </div>
+                                                <div className="text-right ml-2">
+                                                    <span className="text-[11px] font-black text-slate-900 dark:text-white block">{fmt(inst.amount)}</span>
+                                                    <span className="text-[8px] font-black text-slate-400 uppercase">Ver detalhes</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                {installmentDetails.length === 0 && <p className="text-center py-8 text-slate-400 text-xs">Nenhuma parcela pendente encontrada</p>}
                             </div>
                         </div>
                     </Modal>
