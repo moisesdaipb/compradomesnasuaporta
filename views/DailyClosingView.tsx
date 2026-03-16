@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ViewState, Sale, PaymentMethod, DailyClosing, ClosingStatus, Installment, InstallmentStatus, Delivery } from '../types';
+import { ViewState, Sale, PaymentMethod, DailyClosing, ClosingStatus, Installment, InstallmentStatus, Delivery, OrderStatus } from '../types';
 import { generateId } from '../store';
 import { formatCurrency } from '../utils';
 
