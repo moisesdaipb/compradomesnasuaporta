@@ -56,6 +56,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
             const delivery = deliveries.find(d => d.saleId === s.id);
             const isAssignedDriver = delivery?.driverId === sellerId;
 
+            if (!isDirectSeller && !isAssignedDriver) return false;
             if (s.status === OrderStatus.CANCELLED) return false;
 
             if (!closedSalesIds.has(s.id)) return true;
