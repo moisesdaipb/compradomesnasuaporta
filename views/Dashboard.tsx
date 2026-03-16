@@ -194,16 +194,34 @@ const Dashboard: React.FC<DashboardProps> = ({
     );
     const totalInstallmentsPending = pendingInstallmentsArr.reduce((acc, i) => acc + (i.amount || 0), 0);
 
-    const totalPending = totalUnclosedCash + totalInstallmentsPending;
+    // 4. Detailed Breakdown (Fixing duplication)
+    
+    // Settled at headquarters (Approved/Pending accountings)
+    // This value already includes any installments that were part of these closings.
+    const recebidoCentral = validClosings.reduce((acc, c) => acc + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0);
+    const closedAmount = recebidoCentral; 
 
-    // 4. Detailed Breakdown for the new 3-pillar UI
-    const closedAmount = validClosings.reduce((acc, c) => acc + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0);
-    const paidInstallmentsTotal = installments.filter(i => 
-      i.status === InstallmentStatus.PAID && activeSaleIds.has(i.saleId)
+    // With Sellers (Money received from customers but NOT yet in an HQ accounting)
+    const unclosedCashSalesAmount = activeSalesInternal.filter(s => 
+      s.paymentMethod !== PaymentMethod.TERM && !closedSaleIds.has(s.id)
+    ).reduce((acc, s) => acc + (s.total || 0), 0);
+
+    const unclosedPaidInstallmentsAmount = installments.filter(i => 
+      i.status === InstallmentStatus.PAID && activeSaleIds.has(i.saleId) && !closedInstIds.has(i.id)
     ).reduce((acc, i) => acc + (i.amount || 0), 0);
 
-    const recebidoCentral = closedAmount + paidInstallmentsTotal;
-    const saldoAReceber = totalPending; // Unclosed Cash + Pending Installments
+    const dinheiroEmMaos = unclosedCashSalesAmount + unclosedPaidInstallmentsAmount;
+
+    // Remaining with Customers (Debt)
+    const pendingInstallmentsAmount = installments.filter(i => 
+      i.status === InstallmentStatus.PENDING && activeSaleIds.has(i.saleId)
+    ).reduce((acc, i) => acc + (i.amount || 0), 0);
+
+    // Final Top-Level Indicators
+    const saldoAReceber = dinheiroEmMaos + pendingInstallmentsAmount;
+    
+    // Balanced Total (Should match sum(activeSalesInternal.total))
+    const balancedTotal = recebidoCentral + saldoAReceber;
 
     // 5. Overdue Installments
     const overdueInstallmentsArr = pendingInstallmentsArr.filter(i => i.dueDate < Date.now());
@@ -232,15 +250,15 @@ const Dashboard: React.FC<DashboardProps> = ({
       .sort((a, b) => b.unclosedTotal - a.unclosedTotal);
 
     return {
-      totalSoldAll,
+      totalSoldAll: balancedTotal,
       recebidoCentral,
       saldoAReceber,
       closedAmount,
-      totalUnclosedCash,
-      totalInstallmentsPending,
+      totalUnclosedCash: dinheiroEmMaos, // Represents both unclosed sales and unclosed paid installments
+      totalInstallmentsPending: pendingInstallmentsAmount,
       totalOverdue,
       countOverdue,
-      receivedPercent: totalSoldAll > 0 ? Math.min(100, Math.round((recebidoCentral / totalSoldAll) * 100)) : 0,
+      receivedPercent: balancedTotal > 0 ? Math.min(100, Math.round((recebidoCentral / balancedTotal) * 100)) : 0,
       sellerAccountability,
     };
   }, [sales, dailyClosings, installments, userRole]);
