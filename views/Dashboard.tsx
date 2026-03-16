@@ -196,9 +196,14 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const totalPending = totalUnclosedCash + totalInstallmentsPending;
 
-    // 4. Derived Received (Centralized)
-    const totalReceived = Math.max(0, totalSoldAll - totalPending);
-    const receivedPercent = totalSoldAll > 0 ? Math.min(100, Math.round((totalReceived / totalSoldAll) * 100)) : 0;
+    // 4. Detailed Breakdown for the new 3-pillar UI
+    const closedAmount = validClosings.reduce((acc, c) => acc + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0);
+    const paidInstallmentsTotal = installments.filter(i => 
+      i.status === InstallmentStatus.PAID && activeSaleIds.has(i.saleId)
+    ).reduce((acc, i) => acc + (i.amount || 0), 0);
+
+    const recebidoCentral = closedAmount + paidInstallmentsTotal;
+    const saldoAReceber = totalPending; // Unclosed Cash + Pending Installments
 
     // 5. Overdue Installments
     const overdueInstallmentsArr = pendingInstallmentsArr.filter(i => i.dueDate < Date.now());
@@ -228,12 +233,14 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     return {
       totalSoldAll,
-      totalReceived,
-      totalPending,
+      recebidoCentral,
+      saldoAReceber,
+      closedAmount,
+      totalUnclosedCash,
       totalInstallmentsPending,
       totalOverdue,
       countOverdue,
-      receivedPercent,
+      receivedPercent: totalSoldAll > 0 ? Math.min(100, Math.round((recebidoCentral / totalSoldAll) * 100)) : 0,
       sellerAccountability,
     };
   }, [sales, dailyClosings, installments, userRole]);
@@ -625,23 +632,23 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Main Numbers */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-2 gap-4 mb-5">
               <div>
-                <p className="text-[9px] font-bold opacity-60 uppercase tracking-widest mb-0.5">Recebido</p>
+                <p className="text-[9px] font-bold opacity-60 uppercase tracking-widest mb-0.5">Recebido (Central)</p>
                 <p className="text-xl font-black tracking-tight">
-                  {formatCurrency(financialOverview.totalReceived)}
+                  {formatCurrency(financialOverview.recebidoCentral)}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] font-bold opacity-60 uppercase tracking-widest mb-0.5">A Receber</p>
+                <p className="text-[9px] font-bold opacity-60 uppercase tracking-widest mb-0.5">Saldo a Receber</p>
                 <p className="text-xl font-black tracking-tight text-yellow-300">
-                  {formatCurrency(financialOverview.totalPending)}
+                  {formatCurrency(financialOverview.saldoAReceber)}
                 </p>
               </div>
             </div>
 
             {/* Progress Bar */}
-            <div className="mb-4">
+            <div className="mb-6">
               <div className="flex justify-between text-[9px] font-bold opacity-70 mb-1">
                 <span>{financialOverview.receivedPercent}% recebido</span>
                 <span>Total: {formatCurrency(financialOverview.totalSoldAll)}</span>
@@ -656,20 +663,41 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             </div>
 
-            {/* Overdue Breakdown */}
-            <div className="pt-3 border-t border-white/15">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm text-red-300">warning</span>
-                  <p className="text-[10px] font-bold text-red-100 uppercase">Parcelas em Atraso</p>
+            {/* Pillars Grid */}
+            <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10">
+              {/* Pillar 1: Installments */}
+              <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-sm">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="material-symbols-outlined text-[14px] opacity-70">calendar_month</span>
+                  <p className="text-[9px] font-bold uppercase tracking-wider opacity-80">Vendas Parceladas</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-black text-white">
-                    {formatCurrency(financialOverview.totalOverdue)}
-                  </p>
-                  <p className="text-[8px] font-bold opacity-70 uppercase">
-                    {financialOverview.countOverdue} parcela{financialOverview.countOverdue !== 1 ? 's' : ''}
-                  </p>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-end">
+                    <p className="text-[8px] font-medium opacity-60">A Receber</p>
+                    <p className="text-xs font-black">{formatCurrency(financialOverview.totalInstallmentsPending)}</p>
+                  </div>
+                  <div className="flex justify-between items-end border-t border-white/5 pt-1">
+                    <p className="text-[8px] font-bold text-red-300 uppercase">Em Atraso</p>
+                    <p className="text-xs font-black text-red-300">{formatCurrency(financialOverview.totalOverdue)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pillar 2: Accounts (Sellers) */}
+              <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-sm">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="material-symbols-outlined text-[14px] opacity-70">person_check</span>
+                  <p className="text-[9px] font-bold uppercase tracking-wider opacity-80">Contas Vendedores</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-end">
+                    <p className="text-[8px] font-medium opacity-60">Pagas (Central)</p>
+                    <p className="text-xs font-black text-emerald-300">{formatCurrency(financialOverview.closedAmount)}</p>
+                  </div>
+                  <div className="flex justify-between items-end border-t border-white/5 pt-1">
+                    <p className="text-[8px] font-bold text-yellow-300 uppercase">Em Mãos</p>
+                    <p className="text-xs font-black text-yellow-300">{formatCurrency(financialOverview.totalUnclosedCash)}</p>
+                  </div>
                 </div>
               </div>
             </div>
