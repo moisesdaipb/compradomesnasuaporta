@@ -5,7 +5,7 @@ import { supabase } from '../supabase';
 
 interface LoginViewProps {
     onLogin: (session: UserSession) => void;
-    onRegisterCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'createdBy'>) => Customer;
+    onRegisterCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'createdBy'>) => Promise<Customer>;
     settings?: AppSettings;
     initialMode?: 'login' | 'register' | 'forgot-password' | 'reset-password';
 }

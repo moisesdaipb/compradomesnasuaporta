@@ -4,6 +4,7 @@
 
 // Formas de Pagamento
 export enum PaymentMethod {
+  CASH = 'Dinheiro',
   PIX = 'PIX',
   CARD = 'Cartão',
   TERM = 'A Prazo',

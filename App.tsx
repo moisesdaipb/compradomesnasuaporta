@@ -40,6 +40,7 @@ import {
   fetchDailyClosings,
   upsertCustomer,
   updateDeliveryStatus as updateDeliveryStatusInDb,
+  updateSaleStatus,
   createSaleInDb,
   updateCompleteSale,
   payInstallment,
@@ -1133,7 +1134,7 @@ const App: React.FC = () => {
     }
   }, [session, appData.customers, triggerRefresh]);
 
-  const handleUpdateSale = async (
+  const handleUpdateSale = useCallback(async (
     saleId: string,
     saleData: any,
     items: any[],
@@ -1142,14 +1143,14 @@ const App: React.FC = () => {
     try {
       setLoadingStatus('Salvando alterações...');
       await updateCompleteSale(saleId, saleData, items, installments);
-      triggerRefresh();
+      triggerRefresh(100);
     } catch (error: any) {
       console.error('[App] handleUpdateSale error:', error);
       alert('Erro ao atualizar venda: ' + error.message);
     } finally {
       setLoadingStatus('');
     }
-  };
+  }, [triggerRefresh]);
 
   const handleCancelOrder = useCallback(async (saleId: string, status: OrderStatus = OrderStatus.CANCELLED) => {
     try {
@@ -1430,7 +1431,7 @@ const App: React.FC = () => {
   }
 
   if (!session) {
-    return <LoginView settings={appData.settings} onLogin={handleLogin} onRegisterCustomer={handleAddCustomer as any} initialMode={authInitialMode} />;
+    return <LoginView settings={appData.settings} onLogin={handleLogin} onRegisterCustomer={handleAddCustomer} initialMode={authInitialMode} />;
   }
 
   const renderContent = () => {
@@ -1707,7 +1708,9 @@ const App: React.FC = () => {
             sales={filteredSales}
             deliveries={appData.deliveries}
             basketModels={appData.basketModels}
+            installments={appData.installments}
             onUpdateStatus={handleCancelOrder}
+            onUpdateSale={handleUpdateSale}
             setView={setView}
             userRole={session.role}
             customers={appData.customers}
