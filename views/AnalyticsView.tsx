@@ -356,8 +356,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                 {/* ROW 1 - KPI CARDS */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <KpiCard icon="payments" label="Faturamento Total" value={fmt(totalRevenue)} sub={`${activeSales.length} vendas · Online ${fmt(onlineRevenue)} · Presencial ${fmt(presencialRevenue)}`} gradient="from-slate-700 to-slate-900" onClick={() => setActiveModal('faturamento')} badge="Live" />
-                    <KpiCard icon="account_balance" label="À Vista vs A Prazo" value={fmt(cashRevenue)} sub={`A Prazo: ${fmt(termRevenue)}`} gradient="from-blue-500 to-blue-700" onClick={() => setActiveModal('avista')} />
-                    <KpiCard icon="credit_score" label="Parcelas Pendentes" value={fmt(pendingInstTotal)} sub={overdueTotal > 0 ? `⚠ ${fmt(overdueTotal)} em atraso` : 'Nenhuma em atraso'} gradient="from-violet-500 to-indigo-600" onClick={() => setActiveModal('parcelas')} />
+                    <KpiCard icon="event_busy" label="Valor em Atraso" value={fmt(overdueTotal)} sub={`${overdueInstallments.length} parcelas vencidas`} gradient="from-red-500 to-red-700" onClick={() => { setActiveModal('parcelas'); setInstTab('overdue'); }} />
+                    <KpiCard icon="credit_score" label="Parcelas Pendentes" value={fmt(pendingInstTotal)} sub={overdueTotal > 0 ? `⚠ ${fmt(overdueTotal)} em atraso` : 'Nenhuma em atraso'} gradient="from-violet-500 to-indigo-600" onClick={() => { setActiveModal('parcelas'); setInstTab('all'); }} />
                     <KpiCard icon="savings" label="Prestação de Contas" value={fmt(unclosedAmount)} sub={`Já fechado: ${fmt(closedAmount)} de ${fmt(cashRevenue)}`} gradient={unclosedAmount > 0 ? 'from-slate-500 to-slate-700' : 'from-emerald-500 to-teal-600'} onClick={() => setActiveModal('fechamento')} badge={unclosedAmount > 0 ? 'Pendente' : '✓'} />
                 </div>
 
@@ -582,19 +582,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                         </div>
                     </Modal>
                 )}
-                {activeModal === 'avista' && (
-                    <Modal title="À Vista vs A Prazo" icon="account_balance" color="from-blue-500 to-blue-700" onClose={() => setActiveModal(null)}>
-                        <div className="space-y-4">
-                            <div className="flex justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl"><span className="text-sm font-bold text-emerald-600">À Vista</span><span className="text-sm font-black">{fmt(cashRevenue)}</span></div>
-                            <div className="flex justify-between p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl"><span className="text-sm font-bold text-indigo-600">A Prazo</span><span className="text-sm font-black">{fmt(termRevenue)}</span></div>
-                            <div className="border-t pt-3">
-                                <p className="text-[10px] text-slate-400 mb-1">Do valor a prazo:</p>
-                                <div className="flex justify-between p-2 rounded-lg"><span className="text-xs text-emerald-600">Já recebido (parcelas pagas)</span><span className="text-xs font-black">{fmt(paidInstTotal)}</span></div>
-                                <div className="flex justify-between p-2 rounded-lg"><span className="text-xs text-amber-600">Falta receber</span><span className="text-xs font-black">{fmt(pendingInstTotal)}</span></div>
-                            </div>
-                        </div>
-                    </Modal>
-                )}
+
                 {activeModal === 'parcelas' && (
                     <Modal title="Parcelas Pendentes" icon="credit_score" color="from-amber-500 to-orange-600" onClose={() => { setActiveModal(null); setInstTab('all'); }}>
                         <div className="space-y-3">
