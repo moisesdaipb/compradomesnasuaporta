@@ -1206,6 +1206,19 @@ const App: React.FC = () => {
     }
   }, [triggerRefresh]);
 
+  const handleUpdateCustomer = useCallback(async (customer: Partial<Customer>) => {
+    try {
+      setLoadingStatus('Salvando cliente...');
+      await upsertCustomer(customer);
+      triggerRefresh(100);
+    } catch (error: any) {
+      console.error('[App] handleUpdateCustomer error:', error);
+      alert('Erro ao atualizar cliente: ' + (error.message || 'Erro desconhecido'));
+    } finally {
+      setLoadingStatus('Sincronizado');
+    }
+  }, [triggerRefresh]);
+
   // Delivery Handlers
   const handleAssignDelivery = useCallback(async (deliveryId: string, driverId: string) => {
     try {
@@ -1724,6 +1737,7 @@ const App: React.FC = () => {
             customers={appData.customers}
             team={appData.team}
             setView={setView}
+            onUpdateCustomer={handleUpdateCustomer}
           />
         );
 
