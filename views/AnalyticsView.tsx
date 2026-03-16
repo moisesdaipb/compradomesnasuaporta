@@ -12,7 +12,8 @@ interface AnalyticsViewProps {
     settings: AppSettings; loginLogs: LoginLog[]; customers: Customer[]; setView: (v: any) => void;
 }
 
-const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import { formatCurrency } from '../utils';
+const fmt = (v: number) => formatCurrency(v);
 
 // --- MODAL COMPONENT ---
 const Modal: React.FC<{ title: string; icon: string; color: string; onClose: () => void; children: React.ReactNode }> = ({ title, icon, color, onClose, children }) => (

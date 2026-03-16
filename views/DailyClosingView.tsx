@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ViewState, Sale, PaymentMethod, DailyClosing, ClosingStatus, Installment, InstallmentStatus, Delivery } from '../types';
 import { generateId } from '../store';
+import { formatCurrency } from '../utils';
 
 interface DailyClosingViewProps {
     sales: Sale[];
@@ -252,7 +253,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                     <div className="flex justify-between items-start">
                         <div>
                             <p className="text-sm opacity-80 font-bold uppercase tracking-widest">Total Líquido</p>
-                            <p className="text-4xl font-black mt-1">R$ {totals.total.toFixed(2)}</p>
+                            <p className="text-4xl font-black mt-1">{formatCurrency(totals.total)}</p>
                         </div>
                         <div className="text-right">
                             <p className="text-xs opacity-80 font-bold">
@@ -261,7 +262,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                             {pendingApprovalAmount > 0 && (
                                 <div className="mt-2 bg-white/20 px-2 py-1 rounded-lg border border-white/10 flex items-center gap-1 inline-flex">
                                     <span className="material-symbols-outlined text-[12px]">hourglass_empty</span>
-                                    <span className="text-[9px] font-black uppercase tracking-tight">R$ {pendingApprovalAmount.toFixed(2)} Pendente</span>
+                                    <span className="text-[9px] font-black uppercase tracking-tight">{formatCurrency(pendingApprovalAmount)} Pendente</span>
                                 </div>
                             )}
                         </div>
@@ -270,19 +271,19 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                     <div className="mt-6 pt-4 border-t border-white/10 grid grid-cols-2 gap-y-4">
                         <div className="opacity-90">
                             <p className="text-[10px] opacity-60 uppercase font-black tracking-tighter">DINHEIRO / OUTROS</p>
-                            <p className="text-lg font-black tracking-tight">R$ {totals.cash.toFixed(2)}</p>
+                            <p className="text-lg font-black tracking-tight">{formatCurrency(totals.cash)}</p>
                         </div>
                         <div className="opacity-90">
                             <p className="text-[10px] opacity-60 uppercase font-black tracking-tighter">PIX</p>
-                            <p className="text-lg font-black tracking-tight">R$ {totals.pix.toFixed(2)}</p>
+                            <p className="text-lg font-black tracking-tight">{formatCurrency(totals.pix)}</p>
                         </div>
                         <div className="opacity-90">
                             <p className="text-[10px] opacity-60 uppercase font-black tracking-tighter">CARTÃO</p>
-                            <p className="text-lg font-black tracking-tight">R$ {totals.card.toFixed(2)}</p>
+                            <p className="text-lg font-black tracking-tight">{formatCurrency(totals.card)}</p>
                         </div>
                         <div className="opacity-90 bg-white/10 p-2 rounded-xl border border-white/5">
                             <p className="text-[10px] opacity-60 uppercase font-black tracking-tighter text-blue-100">A RECEBER (PRAZO)</p>
-                            <p className="text-lg font-black tracking-tight text-blue-50">R$ {totals.totalPendingTerm.toFixed(2)}</p>
+                            <p className="text-lg font-black tracking-tight text-blue-50">{formatCurrency(totals.totalPendingTerm)}</p>
                         </div>
                     </div>
                 </div>
@@ -346,19 +347,19 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                                             {isTerm ? (
                                                 <>
                                                     <p className={`font-black text-sm ${isSelected ? 'text-primary' : 'text-blue-600 dark:text-blue-400'}`}>
-                                                        R$ {remainingBalance.toFixed(2)}
+                                                        {formatCurrency(remainingBalance)}
                                                     </p>
                                                     <div className="flex flex-col items-end">
                                                         <p className="text-[8px] font-black text-blue-500 uppercase">A receber</p>
-                                                        <p className="text-[8px] font-bold text-slate-400">Total: R$ {sale.total.toFixed(2)}</p>
+                                                        <p className="text-[8px] font-bold text-slate-400">Total: {formatCurrency(sale.total)}</p>
                                                         {receivedAmount > 0 && (
-                                                            <p className="text-[8px] font-bold text-success">Pago: R$ {receivedAmount.toFixed(2)}</p>
+                                                            <p className="text-[8px] font-bold text-success">Pago: {formatCurrency(receivedAmount)}</p>
                                                         )}
                                                     </div>
                                                 </>
                                             ) : (
                                                 <p className={`font-black text-sm ${isSelected ? 'text-primary' : 'text-slate-900 dark:text-white'}`}>
-                                                    R$ {sale.total.toFixed(2)}
+                                                    {formatCurrency(sale.total)}
                                                 </p>
                                             )}
                                         </div>
@@ -411,7 +412,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                                             </div>
                                         </div>
                                         <p className={`font-black text-sm ${isSelected ? 'text-success' : 'text-slate-900 dark:text-white'}`}>
-                                            R$ {inst.amount.toFixed(2)}
+                                            {formatCurrency(inst.amount)}
                                         </p>
                                     </button>
                                 );
@@ -459,7 +460,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <p className="font-black text-slate-900 dark:text-white">R$ {total.toFixed(2)}</p>
+                                            <p className="font-black text-slate-900 dark:text-white">{formatCurrency(total)}</p>
                                             <span className="material-symbols-outlined text-slate-300 text-sm">chevron_right</span>
                                         </div>
                                     </button>
@@ -513,7 +514,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-2xl border-2 border-primary/20 space-y-6 animate-in zoom-in-95">
                             <div className="text-center">
                                 <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mb-1">Confirmar Acerto</p>
-                                <p className="text-4xl font-black text-primary">R$ {totals.total.toFixed(2)}</p>
+                                <p className="text-4xl font-black text-primary">{formatCurrency(totals.total)}</p>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter mt-2">
                                     {selectedSalesIds.size + selectedInstIds.size} itens selecionados
                                 </p>
@@ -585,19 +586,19 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="bg-white dark:bg-slate-700/30 p-3 rounded-2xl border border-slate-100 dark:border-slate-700">
                                         <p className="text-[9px] font-black text-slate-400 uppercase">Dinheiro</p>
-                                        <p className="font-black text-sm">R$ {(viewingClosing.cashAmount || 0).toFixed(2)}</p>
+                                        <p className="font-black text-sm">{formatCurrency(viewingClosing.cashAmount || 0)}</p>
                                     </div>
                                     <div className="bg-white dark:bg-slate-700/30 p-3 rounded-2xl border border-slate-100 dark:border-slate-700">
                                         <p className="text-[9px] font-black text-slate-400 uppercase">PIX</p>
-                                        <p className="font-black text-sm">R$ {(viewingClosing.pixAmount || 0).toFixed(2)}</p>
+                                        <p className="font-black text-sm">{formatCurrency(viewingClosing.pixAmount || 0)}</p>
                                     </div>
                                     <div className="bg-white dark:bg-slate-700/30 p-3 rounded-2xl border border-slate-100 dark:border-slate-700">
                                         <p className="text-[9px] font-black text-slate-400 uppercase">Cartão</p>
-                                        <p className="font-black text-sm">R$ {(viewingClosing.cardAmount || 0).toFixed(2)}</p>
+                                        <p className="font-black text-sm">{formatCurrency(viewingClosing.cardAmount || 0)}</p>
                                     </div>
                                     <div className="bg-primary/5 p-3 rounded-2xl border border-primary/10">
                                         <p className="text-[9px] font-black text-primary uppercase">Total Acertado</p>
-                                        <p className="font-black text-sm text-primary">R$ {((viewingClosing.cashAmount || 0) + (viewingClosing.pixAmount || 0) + (viewingClosing.cardAmount || 0)).toFixed(2)}</p>
+                                        <p className="font-black text-sm text-primary">{formatCurrency((viewingClosing.cashAmount || 0) + (viewingClosing.pixAmount || 0) + (viewingClosing.cardAmount || 0))}</p>
                                     </div>
                                 </div>
                             </div>

@@ -293,6 +293,7 @@ export type ViewState =
   | 'sales-list'
   | 'users-management'
   | 'analytics'
+  | 'manager-customers'
   // Vendedor
   | 'presential-sale'
   | 'customer-register'

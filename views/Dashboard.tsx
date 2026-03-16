@@ -349,7 +349,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       </div>
                       <h4 className="text-white text-xl font-extrabold">{basket.name}</h4>
                       <p className="text-secondary text-xl font-black mt-2">
-                        R$ {basket.price.toFixed(2)}
+                        {formatCurrency(basket.price)}
                       </p>
                     </div>
                   </div>
@@ -399,7 +399,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="mb-4">
             <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-0.5">Vendido</p>
             <p className="text-3xl font-black tracking-tight">
-              R$ {totalSold.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              {formatCurrency(totalSold)}
             </p>
           </div>
 
@@ -445,13 +445,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <div>
                     <p className="text-[9px] font-bold uppercase opacity-60 mb-0.5">Meta Total</p>
                     <p className="text-md font-black">
-                      R$ {goalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      {formatCurrency(goalAmount)}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-[9px] font-bold uppercase opacity-60 mb-0.5">Falta</p>
                     <p className="text-md font-black text-white">
-                      R$ {remainingAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      {formatCurrency(remainingAmount)}
                     </p>
                   </div>
                 </div>
@@ -779,7 +779,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-black text-primary text-sm">R$ {sale.total.toFixed(2)}</p>
+                  <p className="font-black text-primary text-sm">{formatCurrency(sale.total)}</p>
                   <p className={`text-[9px] font-black uppercase tracking-tighter ${getStatusConfig(sale.status).text}`}>
                     {getStatusConfig(sale.status).label}
                   </p>
@@ -841,7 +841,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                               {model.description}
                             </p>
                           )}
-                          <p className="font-bold text-sm text-slate-700 dark:text-slate-300">R$ {item.unitPrice.toFixed(2)} unit.</p>
+                          <p className="font-bold text-sm text-slate-700 dark:text-slate-300">{formatCurrency(item.unitPrice)} unit.</p>
                         </div>
                       </div>
                     );
@@ -862,7 +862,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <span className="material-symbols-outlined text-sm text-primary">payments</span>
                     <p className="text-sm font-black text-slate-900 dark:text-white">{selectedSale.paymentMethod}</p>
                   </div>
-                  <p className="text-xs font-black text-primary mt-1">Total R$ {selectedSale.total.toFixed(2)}</p>
+                  <p className="text-xs font-black text-primary mt-1">Total {formatCurrency(selectedSale.total)}</p>
                 </div>
               </div>
             </div>

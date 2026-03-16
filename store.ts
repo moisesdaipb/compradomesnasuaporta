@@ -707,6 +707,46 @@ export const updateSaleStatus = async (saleId: string, status: OrderStatus) => {
   console.log('[store] updateSaleStatus completed');
 };
 
+export const updateCompleteSale = async (
+  saleId: string,
+  saleData: any,
+  items: any[],
+  installments: any[]
+) => {
+  const start = Date.now();
+  console.log(`[store] [${new Date().toISOString()}] updateCompleteSale atomic - Starting via RPC...`);
+
+  try {
+    const timeoutPromise = new Promise((_, reject) => {
+      const id = setTimeout(() => {
+        clearTimeout(id);
+        reject(new Error('TIMEOUT: O servidor demorou muito para responder ao atualizar a venda.'));
+      }, 30000);
+    });
+
+    const { data, error } = await Promise.race([
+      supabase.rpc('update_complete_sale', {
+        p_sale_id: saleId,
+        p_sale_data: saleData,
+        p_items: items,
+        p_installments: installments || []
+      }),
+      timeoutPromise
+    ]) as any;
+
+    if (error) {
+      console.error(`[store] [${Date.now() - start}ms] updateCompleteSale atomic error:`, error);
+      throw error;
+    }
+
+    console.log(`[store] [${Date.now() - start}ms] updateCompleteSale atomic completed successfully.`);
+    return data;
+  } catch (ex: any) {
+    console.error('[store] EXCEPTION in updateCompleteSale:', ex);
+    throw ex;
+  }
+};
+
 export const upsertBasketModel = async (model: Partial<BasketModel>) => {
   console.log('[store] upsertBasketModel started for:', model.id || 'NEW');
 

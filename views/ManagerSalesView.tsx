@@ -1,22 +1,30 @@
-import React, { useState, useMemo } from 'react';
-import { ViewState, Sale, Delivery, OrderStatus, DeliveryStatus, BasketModel } from '../types';
+import { ViewState, Sale, Delivery, OrderStatus, DeliveryStatus, BasketModel, Customer, Installment } from '../types';
+import EditSaleModal from '../components/EditSaleModal';
 
 interface ManagerSalesViewProps {
     sales: Sale[];
     deliveries: Delivery[];
     basketModels: BasketModel[];
+    customers: Customer[];
+    installments: Installment[];
     onUpdateStatus: (saleId: string, status: OrderStatus) => Promise<void>;
+    onUpdateSale: (saleId: string, saleData: any, items: any[], installments: any[]) => Promise<void>;
     setView: (v: ViewState) => void;
-    userRole?: string;
+    userRole: string;
+    userId: string;
 }
 
 const ManagerSalesView: React.FC<ManagerSalesViewProps> = ({
     sales,
     deliveries,
     basketModels,
+    customers,
+    installments,
     onUpdateStatus,
+    onUpdateSale,
     setView,
-    userRole = 'gerente'
+    userRole,
+    userId
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterRange, setFilterRange] = useState<'month' | '30' | '60' | 'all' | 'custom'>('month');
@@ -25,6 +33,15 @@ const ManagerSalesView: React.FC<ManagerSalesViewProps> = ({
     const [showCustomPicker, setShowCustomPicker] = useState(false);
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+
+    const isSameDay = (timestamp: number) => {
+        const date = new Date(timestamp);
+        const now = new Date();
+        return date.getFullYear() === now.getFullYear() &&
+               date.getMonth() === now.getMonth() &&
+               date.getDate() === now.getDate();
+    };
 
     const filteredSales = useMemo(() => {
         return sales
@@ -466,6 +483,46 @@ const ManagerSalesView: React.FC<ManagerSalesViewProps> = ({
                                 </div>
                             )}
 
+                            {/* Actions for Seller (Same Day) or Manager (Always) */}
+                            {selectedSale.status !== OrderStatus.CANCELLED && (
+                                <div className="space-y-3">
+                                    {(userRole === 'gerente' || (selectedSale.sellerId === userId && isSameDay(selectedSale.createdAt))) && (
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <button
+                                                onClick={() => setIsEditing(true)}
+                                                className="h-14 bg-primary/10 text-primary font-black rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all text-sm"
+                                            >
+                                                <span className="material-symbols-outlined">edit</span>
+                                                Editar Venda
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (confirm('Deseja realmente cancelar esta venda?')) {
+                                                        try {
+                                                            setIsUpdating(true);
+                                                            await onUpdateStatus(selectedSale.id, OrderStatus.CANCELLED);
+                                                            setSelectedSale(null);
+                                                        } finally {
+                                                            setIsUpdating(false);
+                                                        }
+                                                    }
+                                                }}
+                                                className="h-14 bg-danger/10 text-danger font-black rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all text-sm"
+                                            >
+                                                <span className="material-symbols-outlined">cancel</span>
+                                                Cancelar Venda
+                                            </button>
+                                        </div>
+                                    )}
+                                    
+                                    {userRole === 'vendedor' && selectedSale.sellerId === userId && !isSameDay(selectedSale.createdAt) && (
+                                        <p className="text-[10px] text-slate-400 font-bold text-center italic">
+                                            Vendas de dias anteriores não podem ser editadas ou canceladas por vendedores.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Active Delivery Tracking for Manager */}
                             {selectedSale.channel === 'online' && (
                                 <div className="bg-primary/5 p-6 rounded-[32px] border border-primary/10">
@@ -521,6 +578,26 @@ const ManagerSalesView: React.FC<ManagerSalesViewProps> = ({
                         )}
                     </div>
                 </div>
+            )}
+            {/* Edit Sale Modal */}
+            {isEditing && selectedSale && (
+                <EditSaleModal
+                    sale={selectedSale}
+                    customers={customers}
+                    basketModels={basketModels}
+                    installments={installments}
+                    onClose={() => setIsEditing(false)}
+                    onSave={async (id, data, items, insts) => {
+                        try {
+                            setIsUpdating(true);
+                            await onUpdateSale(id, data, items, insts);
+                            setIsEditing(false);
+                            setSelectedSale(null);
+                        } finally {
+                            setIsUpdating(false);
+                        }
+                    }}
+                />
             )}
         </div>
     );

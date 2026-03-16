@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ViewState, BasketModel, StockItem, Customer, SaleItem, PaymentMethod } from '../types';
 import { getStockQuantity } from '../store';
+import { formatCurrency } from '../utils';
 
 interface PresentialSaleViewProps {
     basketModels: BasketModel[];
@@ -107,7 +108,7 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
                 <p className="text-slate-500 mb-2">
                     {model?.name} para {selectedCustomer?.name}
                 </p>
-                <p className="text-2xl font-black text-primary mb-8">R$ {total.toFixed(2)}</p>
+                <p className="text-2xl font-black text-primary mb-8">{formatCurrency(total)}</p>
                 <button
                     onClick={() => {
                         setStep('product');
@@ -214,7 +215,7 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
                                         <img src={m.image} alt={m.name} className="size-16 rounded-xl object-cover" />
                                         <div className="flex-1 text-left">
                                             <p className="font-bold">{m.name}</p>
-                                            <p className="text-lg font-black text-primary">R$ {m.price.toFixed(2)}</p>
+                                            <p className="text-lg font-black text-primary">{formatCurrency(m.price)}</p>
                                             <p className={`text-xs ${qty < 20 ? 'text-danger' : 'text-slate-400'}`}>
                                                 {qty > 0 ? `${qty} em estoque` : 'Sem estoque'}
                                             </p>
@@ -334,7 +335,7 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
 
                             {distributionType === 'equal' ? (
                                 <p className="text-lg font-bold text-primary mt-3">
-                                    {installmentsCount}x de R$ {(total / installmentsCount).toFixed(2)}
+                                    {installmentsCount}x de {formatCurrency(total / installmentsCount)}
                                 </p>
                             ) : (
                                 <div className="mt-4 space-y-3">
@@ -359,10 +360,10 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
                                     <div className={`p-3 rounded-xl flex items-center justify-between mt-4 ${isValidCustom ? 'bg-success/5 border border-success/20' : 'bg-danger/5 border border-danger/20'}`}>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Soma das Parcelas</span>
-                                            <span className={`text-sm font-black ${isValidCustom ? 'text-success' : 'text-danger'}`}>R$ {totalCustom.toFixed(2)}</span>
+                                            <span className={`text-sm font-black ${isValidCustom ? 'text-success' : 'text-danger'}`}>{formatCurrency(totalCustom)}</span>
                                         </div>
                                         {!isValidCustom && (
-                                            <span className="text-[10px] font-bold text-danger max-w-[120px] text-right">A soma deve ser R$ {total.toFixed(2)}</span>
+                                            <span className="text-[10px] font-bold text-danger max-w-[120px] text-right">A soma deve ser {formatCurrency(total)}</span>
                                         )}
                                         {isValidCustom && (
                                             <span className="material-symbols-outlined text-success">check_circle</span>
@@ -404,7 +405,7 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
                     <div className="bg-white dark:bg-slate-800 rounded-xl p-3 mb-3 border border-slate-100 dark:border-slate-700 flex items-center justify-between">
                         <div>
                             <p className="text-xs text-slate-400">{quantity}x {model.name}</p>
-                            <p className="text-xl font-black text-primary">R$ {total.toFixed(2)}</p>
+                            <p className="text-xl font-black text-primary">{formatCurrency(total)}</p>
                         </div>
                     </div>
                 )}

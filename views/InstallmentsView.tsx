@@ -3,12 +3,18 @@ import { ViewState, Installment, InstallmentStatus, PaymentMethod } from '../typ
 
 interface InstallmentsViewProps {
     installments: Installment[];
+    sales: Sale[];
+    userRole: string;
+    userId: string;
     onPayInstallment: (id: string, paymentMethod: PaymentMethod) => void;
     setView: (v: ViewState) => void;
 }
 
 const InstallmentsView: React.FC<InstallmentsViewProps> = ({
     installments,
+    sales,
+    userRole,
+    userId,
     onPayInstallment,
     setView,
 }) => {
@@ -19,12 +25,19 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
 
     // Update overdue status
     const today = Date.now();
-    const processedInstallments = installments.map(i => ({
-        ...i,
-        status: i.status === InstallmentStatus.PENDING && i.dueDate < today
-            ? InstallmentStatus.OVERDUE
-            : i.status,
-    }));
+    const processedInstallments = installments
+        .filter(i => {
+            if (userRole === 'gerente') return true;
+            // Find the sale for this installment to check the seller
+            const sale = sales.find(s => s.id === i.saleId);
+            return sale?.sellerId === userId;
+        })
+        .map(i => ({
+            ...i,
+            status: i.status === InstallmentStatus.PENDING && i.dueDate < today
+                ? InstallmentStatus.OVERDUE
+                : i.status,
+        }));
 
     const filteredInstallments = processedInstallments
         .filter(i => {

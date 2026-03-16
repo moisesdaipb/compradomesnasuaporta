@@ -40,8 +40,8 @@ import {
   fetchDailyClosings,
   upsertCustomer,
   updateDeliveryStatus as updateDeliveryStatusInDb,
-  updateSaleStatus,
   createSaleInDb,
+  updateCompleteSale,
   payInstallment,
   upsertBasketModel,
   updateProfileStatus,
@@ -98,6 +98,7 @@ import UsersManagementView from './views/UsersManagementView';
 import SettingsView from './views/SettingsView';
 import AppConfigView from './views/AppConfigView';
 import AnalyticsView from './views/AnalyticsView';
+import ManagerCustomersView from './views/ManagerCustomersView';
 
 interface AppState extends AppData {
   allUsers: any[];
@@ -1132,6 +1133,24 @@ const App: React.FC = () => {
     }
   }, [session, appData.customers, triggerRefresh]);
 
+  const handleUpdateSale = async (
+    saleId: string,
+    saleData: any,
+    items: any[],
+    installments: any[]
+  ) => {
+    try {
+      setLoadingStatus('Salvando alterações...');
+      await updateCompleteSale(saleId, saleData, items, installments);
+      triggerRefresh();
+    } catch (error: any) {
+      console.error('[App] handleUpdateSale error:', error);
+      alert('Erro ao atualizar venda: ' + error.message);
+    } finally {
+      setLoadingStatus('');
+    }
+  };
+
   const handleCancelOrder = useCallback(async (saleId: string, status: OrderStatus = OrderStatus.CANCELLED) => {
     try {
       console.log('[App] handleCancelOrder started for:', saleId, 'with status:', status);
@@ -1574,7 +1593,9 @@ const App: React.FC = () => {
       case 'customer-register':
         return (
           <CustomerRegisterView
-            customers={appData.customers}
+            customers={session?.role === 'gerente'
+              ? appData.customers
+              : appData.customers.filter(c => c.createdBy === session?.id)}
             onAddCustomer={handleAddCustomer}
             onSelectCustomer={setSelectedCustomer}
             setView={setView}
@@ -1586,7 +1607,9 @@ const App: React.FC = () => {
           <PresentialSaleView
             basketModels={appData.basketModels}
             stock={appData.stock}
-            customers={appData.customers}
+            customers={session?.role === 'gerente'
+              ? appData.customers
+              : appData.customers.filter(c => c.createdBy === session?.id)}
             selectedCustomer={selectedCustomer}
             onSelectCustomer={setSelectedCustomer}
             onCreateSale={handleCreateSale}
@@ -1598,6 +1621,9 @@ const App: React.FC = () => {
         return (
           <InstallmentsView
             installments={appData.installments}
+            sales={appData.sales}
+            userRole={session?.role || 'cliente'}
+            userId={session?.id || ''}
             onPayInstallment={handlePayInstallment}
             setView={setView}
           />
@@ -1660,6 +1686,9 @@ const App: React.FC = () => {
         return (
           <InstallmentsView
             installments={appData.installments}
+            sales={appData.sales}
+            userRole={session?.role || 'cliente'}
+            userId={session?.id || ''}
             onPayInstallment={handlePayInstallment}
             setView={setView}
           />
@@ -1681,6 +1710,17 @@ const App: React.FC = () => {
             onUpdateStatus={handleCancelOrder}
             setView={setView}
             userRole={session.role}
+            customers={appData.customers}
+            userId={session.id}
+          />
+        );
+
+      case 'manager-customers':
+        return (
+          <ManagerCustomersView
+            customers={appData.customers}
+            team={appData.team}
+            setView={setView}
           />
         );
 

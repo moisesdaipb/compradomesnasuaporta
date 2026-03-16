@@ -22,6 +22,7 @@ const getMenuItems = (role: UserRole): { icon: string; label: string; view: View
         { icon: 'inventory_2', label: 'Estoque', view: 'stock' },
         { icon: 'add_box', label: 'Entrada', view: 'stock-entry' },
         { icon: 'category', label: 'Modelos', view: 'basket-models' },
+        { icon: 'person_search', label: 'Clientes', view: 'manager-customers' },
         { icon: 'group', label: 'Equipe', view: 'team' },
         {icon: 'local_shipping', label: 'Entregas', view: 'deliveries'},
         {icon: 'receipt_long', label: 'Fechar Caixa', view: 'closing-approval'},
