@@ -702,61 +702,102 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                 {/* Sale Detail Modal (Drill-down) */}
                 {selectedSaleId && (
                     <Modal 
-                        title="Detalhes da Venda" 
+                        title="Detalhes do Pedido" 
                         icon="receipt_long" 
-                        color="from-primary to-blue-700" 
+                        color="from-slate-800 to-slate-950" 
                         onClose={() => setSelectedSaleId(null)}
                     >
                         {(() => {
                             const sale = sales.find(s => s.id === selectedSaleId);
                             if (!sale) return <p className="text-center py-4 text-slate-400">Venda não encontrada</p>;
                             const customer = customers.find(c => c.id === sale.customerId);
+                            const saleInsts = installments.filter(i => i.saleId === sale.id).sort((a, b) => a.number - b.number);
+                            
                             return (
-                                <div className="space-y-6">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cliente</p>
-                                            <h4 className="font-black text-slate-900 dark:text-white">{sale.customerName}</h4>
-                                            <p className="text-xs text-slate-500">{customer?.phone || 'Telefone não informado'}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Data</p>
-                                            <p className="text-sm font-bold">{new Date(sale.createdAt).toLocaleDateString('pt-BR')} {new Date(sale.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                                <div className="space-y-5">
+                                    {/* Header Info */}
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-auto">#{sale.id.slice(0, 8).toUpperCase()}</span>
+                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${sale.status === OrderStatus.DELIVERED ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-white'}`}>
+                                            {sale.status}
+                                        </span>
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[9px] font-bold text-slate-500">
+                                            <span className="material-symbols-outlined text-[10px]">schedule</span>
+                                            {new Date(sale.createdAt).toLocaleDateString('pt-BR')} {new Date(sale.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                         </div>
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Produtos</p>
-                                        <div className="space-y-2">
+                                    {/* Customer / Products */}
+                                    <div className="bg-white dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                                        <div className="mb-4">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Cliente</p>
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white">{sale.customerName}</h4>
+                                            <p className="text-[10px] text-slate-500">{customer?.phone || 'Telefone não informado'}</p>
+                                        </div>
+                                        <div className="space-y-2 border-t border-slate-50 dark:border-slate-800 pt-3">
                                             {sale.items.map((item, idx) => (
-                                                <div key={idx} className="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                                                <div key={idx} className="flex justify-between items-center text-[11px]">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-xs font-black text-primary">x{item.quantity}</span>
-                                                        <span className="text-xs font-bold">{item.basketName}</span>
+                                                        <span className="font-black text-primary">x{item.quantity}</span>
+                                                        <span className="font-bold text-slate-700 dark:text-slate-300">{item.basketName}</span>
                                                     </div>
-                                                    <span className="text-xs font-black">{fmt(item.unitPrice * item.quantity)}</span>
+                                                    <span className="font-black text-slate-900 dark:text-white">{fmt(item.unitPrice * item.quantity)}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Pagamento</p>
-                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{sale.paymentMethod}</p>
-                                            <p className="text-[10px] text-primary font-bold">{sale.paymentSubMethod || 'Direto'}</p>
+                                    {/* Cards Row */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="p-4 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100/50 dark:border-blue-900/20">
+                                            <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-2">Venda Realizada Por</p>
+                                            <div className="flex items-center gap-2 mb-2 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                                                <span className="material-symbols-outlined text-xs">person</span>
+                                                {sale.sellerName || 'Venda Online'}
+                                            </div>
+                                            {sale.driverName && (
+                                                <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500">
+                                                    <span className="material-symbols-outlined text-xs">local_shipping</span>
+                                                    {sale.driverName}
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
-                                            <p className="text-lg font-black text-primary">{fmt(sale.total)}</p>
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Pagamento</p>
+                                            <div className="flex items-center gap-2 mb-1 text-[10px] font-black uppercase text-slate-700 dark:text-slate-200">
+                                                <span className="material-symbols-outlined text-xs">payments</span>
+                                                {sale.paymentMethod}
+                                            </div>
+                                            <p className="text-sm font-black text-primary">Total {fmt(sale.total)}</p>
                                         </div>
                                     </div>
 
-                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/30">
-                                        <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Origem / Entrega</p>
-                                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Vendedor: {sale.sellerName || 'Online'}</p>
-                                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Cidade: {customer?.city || '-'} · Bairro: {customer?.neighborhood || '-'}</p>
-                                    </div>
+                                    {/* Installments Section */}
+                                    {saleInsts.length > 0 && (
+                                        <div className="space-y-3">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Parcelas e Vencimentos</p>
+                                            <div className="space-y-2">
+                                                {saleInsts.map(inst => {
+                                                    const isPaid = inst.status === InstallmentStatus.PAID;
+                                                    const isOverdue = inst.dueDate < Date.now() && !isPaid;
+                                                    return (
+                                                        <div key={inst.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800 rounded-xl shadow-sm">
+                                                            <div>
+                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{inst.number}ª Parcela</p>
+                                                                <p className={`text-[11px] font-bold ${isOverdue ? 'text-red-500' : 'text-slate-600 dark:text-slate-300'}`}>{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-[11px] font-black text-slate-900 dark:text-white mb-1">{fmt(inst.amount)}</p>
+                                                                <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest ${isPaid ? 'bg-emerald-500 text-white' : isOverdue ? 'bg-red-500 text-white animate-pulse' : 'bg-amber-400 text-white'}`}>
+                                                                    {isPaid ? 'Pago' : isOverdue ? 'Atrasada' : 'Pendente'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })()}
