@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ViewState, Installment, InstallmentStatus, PaymentMethod } from '../types';
+import { ViewState, Installment, InstallmentStatus, PaymentMethod, Sale, OrderStatus } from '../types';
 
 interface InstallmentsViewProps {
     installments: Installment[];
