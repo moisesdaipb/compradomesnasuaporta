@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Sale, Customer, PaymentMethod, BasketModel, Installment, OrderStatus } from '../types';
 import { formatCurrency } from '../utils';
 
@@ -80,18 +80,35 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({
         setEditableInstallments(newInsts);
     };
 
-    const redistributionInProgress = false; // Flag for future use if needed
+    const totalVal = useMemo(() => {
+        const parsed = parseFloat(total.replace(',', '.'));
+        return isNaN(parsed) ? 0 : parsed;
+    }, [total]);
 
-    const installmentsSum = paymentMethod === PaymentMethod.TERM 
-        ? Math.round(editableInstallments.reduce((acc, inst) => acc + inst.amount, 0) * 100) / 100
-        : parseFloat(total);
+    const installmentsSum = useMemo(() => {
+        if (paymentMethod !== PaymentMethod.TERM) return totalVal;
+        const sum = editableInstallments.reduce((acc, inst) => acc + (inst.amount || 0), 0);
+        return Math.round(sum * 100) / 100;
+    }, [editableInstallments, paymentMethod, totalVal]);
 
-    const totalVal = parseFloat(total) || 0;
-    const difference = Math.round((totalVal - installmentsSum) * 100) / 100;
-    const isTotalValid = paymentMethod !== PaymentMethod.TERM || Math.abs(difference) < 0.01;
+    const difference = useMemo(() => 
+        Math.round((totalVal - installmentsSum) * 100) / 100, 
+    [totalVal, installmentsSum]);
+
+    const isTotalValid = useMemo(() => 
+        paymentMethod !== PaymentMethod.TERM || Math.abs(difference) < 0.01, 
+    [paymentMethod, difference]);
 
     const handleSave = () => {
-        if (!isTotalValid) return;
+        // Final sanity check before saving
+        const currentSum = paymentMethod === PaymentMethod.TERM 
+            ? Math.round(editableInstallments.reduce((acc, inst) => acc + (inst.amount || 0), 0) * 100) / 100
+            : totalVal;
+            
+        if (paymentMethod === PaymentMethod.TERM && Math.abs(totalVal - currentSum) >= 0.01) {
+            alert(`Erro: A soma das parcelas (R$ ${currentSum.toFixed(2)}) deve ser exatamente igual ao total (R$ ${totalVal.toFixed(2)})`);
+            return;
+        }
 
         const updatedSaleData: Partial<Sale> = {
             customerId,
@@ -240,26 +257,49 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({
                 </div>
 
                 <div className="p-6 bg-slate-50 dark:bg-slate-800/30 space-y-3">
-                    {paymentMethod === PaymentMethod.TERM && !isTotalValid && (
-                        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl mb-3 flex items-center gap-3 animate-in slide-in-from-top-2 duration-300">
-                            <span className="material-symbols-outlined text-amber-500">warning</span>
-                            <div className="flex-1">
-                                <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                                    Soma das parcelas não bate com o total.
-                                </p>
-                                <p className="text-[10px] font-medium text-amber-600 dark:text-amber-500">
-                                    {difference > 0 
-                                        ? `Faltam R$ ${difference.toFixed(2)}` 
-                                        : `Soma excedeu R$ ${Math.abs(difference).toFixed(2)}`
-                                    }
-                                </p>
+                    {paymentMethod === PaymentMethod.TERM && (
+                        <div className={`p-4 rounded-2xl border flex flex-col gap-2 animate-in slide-in-from-top-2 duration-300 ${
+                            isTotalValid 
+                            ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800' 
+                            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900'
+                        }`}>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className={`material-symbols-outlined text-sm ${isTotalValid ? 'text-success' : 'text-red-500'}`}>
+                                        {isTotalValid ? 'check_circle' : 'warning'}
+                                    </span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Resumo da Conferência</span>
+                                </div>
+                                {!isTotalValid && (
+                                    <button 
+                                        onClick={redistributeTotal}
+                                        className="px-3 py-1 bg-red-500 text-white rounded-lg text-[9px] font-black uppercase shadow-sm"
+                                    >
+                                        Auto-Ajustar
+                                    </button>
+                                )}
                             </div>
-                            <button 
-                                onClick={redistributeTotal}
-                                className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase shadow-sm"
-                            >
-                                Ajustar
-                            </button>
+                            
+                            <div className="grid grid-cols-2 gap-4 mt-1">
+                                <div>
+                                    <p className="text-[9px] text-slate-400 uppercase font-bold">Soma das Parcelas</p>
+                                    <p className={`text-lg font-black ${isTotalValid ? 'text-slate-700 dark:text-slate-200' : 'text-red-600 animate-pulse'}`}>
+                                        R$ {installmentsSum.toFixed(2)}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] text-slate-400 uppercase font-bold">Diferença</p>
+                                    <p className={`text-lg font-black ${isTotalValid ? 'text-success' : 'text-red-600'}`}>
+                                        {difference === 0 ? 'Zerado' : `R$ ${difference > 0 ? '-' : '+'}${Math.abs(difference).toFixed(2)}`}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {!isTotalValid && (
+                                <p className="text-[10px] font-bold text-red-500 mt-1 italic">
+                                    * O salvamento está bloqueado até que a diferença seja zero.
+                                </p>
+                            )}
                         </div>
                     )}
 
