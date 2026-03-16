@@ -351,6 +351,10 @@ const ManagerSalesView: React.FC<ManagerSalesViewProps> = ({
                                     <div className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase text-white ${getStatusConfig(selectedSale.status).color}`}>
                                         {getStatusConfig(selectedSale.status).label}
                                     </div>
+                                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                                        <span className="material-symbols-outlined text-xs">schedule</span>
+                                        {new Date(selectedSale.createdAt).toLocaleString('pt-BR')}
+                                    </div>
                                 </div>
                             </div>
                             <button
@@ -395,12 +399,27 @@ const ManagerSalesView: React.FC<ManagerSalesViewProps> = ({
                                 </div>
                             </div>
 
-                            {/* Customer & Delivery Grid */}
+                            {/* Customer & Payment Grid */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-700/50">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Cliente</p>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white truncate">{selectedSale.customerAddress ? selectedSale.customerName : 'Venda Presencial'}</p>
-                                    <p className="text-xs text-slate-500 mt-1 font-medium">{selectedSale.channel.toUpperCase()}</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Venda Realizada Por</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white truncate">
+                                        {selectedSale.sellerName ? (
+                                            <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                                                <span className="material-symbols-outlined text-sm">person</span>
+                                                {selectedSale.sellerName}
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-1.5 text-success">
+                                                <span className="material-symbols-outlined text-sm">shopping_cart</span>
+                                                Loja Online
+                                            </span>
+                                        )}
+                                    </p>
+                                    <p className="text-[11px] font-bold text-slate-500 mt-2 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-xs">groups</span>
+                                        {selectedSale.customerName}
+                                    </p>
                                 </div>
                                 <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-700/50">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Pagamento</p>
@@ -411,6 +430,48 @@ const ManagerSalesView: React.FC<ManagerSalesViewProps> = ({
                                     <p className="text-xs font-black text-primary mt-1">Total R$ {selectedSale.total.toFixed(2)}</p>
                                 </div>
                             </div>
+
+                            {/* Installments (If Applicable) */}
+                            {selectedSale.paymentMethod === 'A Prazo' && (
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-700/50">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Parcelas e Vencimentos</h4>
+                                    <div className="space-y-2">
+                                        {installments
+                                            .filter(i => i.saleId === selectedSale.id)
+                                            .sort((a, b) => a.number - b.number)
+                                            .map((inst, idx) => {
+                                                const isOverdue = inst.status === 'Pendente' && inst.dueDate < Date.now();
+                                                return (
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase">{inst.number}ª Parcela</span>
+                                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                                {new Date(inst.dueDate).toLocaleDateString('pt-BR')}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex flex-col items-end">
+                                                            <span className="text-sm font-black text-slate-900 dark:text-white">R$ {inst.amount.toFixed(2)}</span>
+                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                {isOverdue && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-600 text-[8px] font-black uppercase animate-pulse">
+                                                                        Atrasado
+                                                                    </span>
+                                                                )}
+                                                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                                                                    inst.status === 'Pago' ? 'bg-success/10 text-success' : 
+                                                                    inst.status === 'Cancelado' ? 'bg-slate-100 text-slate-500' :
+                                                                    'bg-orange-100 text-orange-600'
+                                                                }`}>
+                                                                    {inst.status}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Address Info */}
                             {selectedSale.channel === 'online' && (
