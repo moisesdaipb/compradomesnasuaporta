@@ -92,6 +92,8 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
             if (i.status !== InstallmentStatus.PAID) {
                 const sale = sales.find(s => s.id === i.saleId);
                 const delivery = deliveries.find(d => d.saleId === i.saleId);
+                const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId;
+
                 if (isAssignedToMe && i.status !== InstallmentStatus.CANCELLED) {
                     // Also check if the parent sale is not cancelled just in case
                     const saleStatus = sales.find(s => s.id === i.saleId)?.status;
