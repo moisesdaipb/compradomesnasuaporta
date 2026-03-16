@@ -196,9 +196,14 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     const totalPending = totalUnclosedCash + totalInstallmentsPending;
 
-    // 4. Derived Received
+    // 4. Derived Received (Centralized)
     const totalReceived = Math.max(0, totalSoldAll - totalPending);
     const receivedPercent = totalSoldAll > 0 ? Math.min(100, Math.round((totalReceived / totalSoldAll) * 100)) : 0;
+
+    // 5. Overdue Installments
+    const overdueInstallmentsArr = pendingInstallmentsArr.filter(i => i.dueDate < Date.now());
+    const totalOverdue = overdueInstallmentsArr.reduce((acc, i) => acc + (i.amount || 0), 0);
+    const countOverdue = overdueInstallmentsArr.length;
 
     // Per-seller accountability
     const sellerMap = new Map<string, { name: string; unclosedTotal: number; unclosedCount: number }>();
@@ -226,6 +231,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       totalReceived,
       totalPending,
       totalInstallmentsPending,
+      totalOverdue,
+      countOverdue,
       receivedPercent,
       sellerAccountability,
     };
@@ -649,20 +656,23 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             </div>
 
-            {/* Breakdown */}
-            {financialOverview.totalInstallmentsPending > 0 && (
-              <div className="pt-3 border-t border-white/15">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-sm opacity-70">credit_score</span>
-                    <p className="text-[10px] font-bold opacity-80">Parcelas Pendentes</p>
-                  </div>
-                  <p className="text-sm font-black text-yellow-300">
-                    {formatCurrency(financialOverview.totalInstallmentsPending)}
+            {/* Overdue Breakdown */}
+            <div className="pt-3 border-t border-white/15">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm text-red-300">warning</span>
+                  <p className="text-[10px] font-bold text-red-100 uppercase">Parcelas em Atraso</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-black text-white">
+                    {formatCurrency(financialOverview.totalOverdue)}
+                  </p>
+                  <p className="text-[8px] font-bold opacity-70 uppercase">
+                    {financialOverview.countOverdue} parcela{financialOverview.countOverdue !== 1 ? 's' : ''}
                   </p>
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Seller Accountability List */}

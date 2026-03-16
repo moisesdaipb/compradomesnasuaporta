@@ -107,12 +107,15 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     const cashRevenue = useMemo(() => activeSales.filter(s => s.paymentMethod !== PaymentMethod.TERM).reduce((a, s) => a + s.total, 0), [activeSales]);
     const termRevenue = useMemo(() => activeSales.filter(s => s.paymentMethod === PaymentMethod.TERM).reduce((a, s) => a + s.total, 0), [activeSales]);
 
-    // Installments
-    const pendingInstallments = useMemo(() => installments.filter(i => i.status === InstallmentStatus.PENDING), [installments]);
+    // Installments (Only from active/filtered sales)
+    const activeSaleIds = useMemo(() => new Set(activeSales.map(s => s.id)), [activeSales]);
+    const activeInstallments = useMemo(() => installments.filter(i => activeSaleIds.has(i.saleId)), [installments, activeSaleIds]);
+
+    const pendingInstallments = useMemo(() => activeInstallments.filter(i => i.status === InstallmentStatus.PENDING), [activeInstallments]);
     const pendingInstTotal = useMemo(() => pendingInstallments.reduce((a, i) => a + i.amount, 0), [pendingInstallments]);
     const overdueInstallments = useMemo(() => pendingInstallments.filter(i => i.dueDate < Date.now()), [pendingInstallments]);
     const overdueTotal = useMemo(() => overdueInstallments.reduce((a, i) => a + i.amount, 0), [overdueInstallments]);
-    const paidInstTotal = useMemo(() => installments.filter(i => i.status === InstallmentStatus.PAID).reduce((a, i) => a + i.amount, 0), [installments]);
+    const paidInstTotal = useMemo(() => activeInstallments.filter(i => i.status === InstallmentStatus.PAID).reduce((a, i) => a + i.amount, 0), [activeInstallments]);
 
     // Closing
     // Closing — use the amounts reported in each closing directly
