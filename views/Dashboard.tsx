@@ -174,8 +174,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     // 1. Identify all sales accounted for in validated closings (Approved or Pending)
     const validClosings = dailyClosings.filter(c => c.status === ClosingStatus.APPROVED || c.status === ClosingStatus.PENDING);
     const closedSaleIds = new Set<string>();
+    const closedInstIds = new Set<string>();
     validClosings.forEach(c => {
       (c.salesIds || []).forEach(id => closedSaleIds.add(id));
+      (c.installmentIds || []).forEach(id => closedInstIds.add(id));
     });
 
     // 2. Identify all active sales (excluding cancelled)
