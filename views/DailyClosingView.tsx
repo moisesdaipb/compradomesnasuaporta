@@ -56,12 +56,12 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
             const delivery = deliveries.find(d => d.saleId === s.id);
             const isAssignedDriver = delivery?.driverId === sellerId;
 
-            if (!isDirectSeller && !isAssignedDriver) return false;
+            if (s.status === OrderStatus.CANCELLED) return false;
 
             if (!closedSalesIds.has(s.id)) return true;
             if (s.paymentMethod === PaymentMethod.TERM) {
                 // Keep term sales visible if they have any unpaid balance
-                const hasUnpaid = installments.some(i => i.saleId === s.id && i.status !== InstallmentStatus.PAID);
+                const hasUnpaid = installments.some(i => i.saleId === s.id && i.status !== InstallmentStatus.PAID && i.status !== InstallmentStatus.CANCELLED);
                 return hasUnpaid;
             }
             return false;
@@ -92,10 +92,12 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
             if (i.status !== InstallmentStatus.PAID) {
                 const sale = sales.find(s => s.id === i.saleId);
                 const delivery = deliveries.find(d => d.saleId === i.saleId);
-                const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId;
-
-                if (isAssignedToMe) {
-                    result.totalPendingTerm += i.amount;
+                if (isAssignedToMe && i.status !== InstallmentStatus.CANCELLED) {
+                    // Also check if the parent sale is not cancelled just in case
+                    const saleStatus = sales.find(s => s.id === i.saleId)?.status;
+                    if (saleStatus !== OrderStatus.CANCELLED) {
+                        result.totalPendingTerm += i.amount;
+                    }
                 }
             }
         });
