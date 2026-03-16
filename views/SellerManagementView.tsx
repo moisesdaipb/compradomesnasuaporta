@@ -62,7 +62,7 @@ const SellerManagementView: React.FC<SellerManagementViewProps> = ({
 
         const sellerInstallments = installments.filter(i => {
             const sale = sales.find(s => s.id === i.saleId);
-            if (!sale) return false;
+            if (!sale || sale.status === OrderStatus.CANCELLED) return false;
             // Includes installments for their own sales AND for deliveries they performed
             if (sale.sellerId === sellerId) return true;
             const delivery = deliveries.find(d => d.saleId === i.saleId);

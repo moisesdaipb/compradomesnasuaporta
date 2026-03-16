@@ -386,6 +386,7 @@ export const fetchInstallments = async (): Promise<Installment[]> => {
       if (s === 'pendente' || s === 'pending') return InstallmentStatus.PENDING;
       if (s === 'pago' || s === 'paid') return InstallmentStatus.PAID;
       if (s === 'atrasado' || s === 'overdue') return InstallmentStatus.OVERDUE;
+      if (s === 'cancelado' || s === 'cancelled') return InstallmentStatus.CANCELLED;
       return i.status as InstallmentStatus;
     })(),
     paidAt: i.paid_at ? new Date(i.paid_at).getTime() : undefined,
@@ -707,9 +708,10 @@ export const updateSaleStatus = async (saleId: string, status: OrderStatus) => {
     throw saleError;
   }
 
-  // 2. Update associated Delivery if any
-  // ONLY cancel delivery if sale is fully CANCELLED
+  // 2. Update associated Delivery and Installments if any
+  // ONLY cancel delivery and installments if sale is fully CANCELLED
   if (status === OrderStatus.CANCELLED) {
+    // 2.1 Cancel Deliveries
     const { error: delError } = await supabase
       .from('deliveries')
       .update({ status: DeliveryStatus.CANCELLED })
@@ -717,6 +719,17 @@ export const updateSaleStatus = async (saleId: string, status: OrderStatus) => {
 
     if (delError) {
       console.warn('[store] updateSaleStatus - Delivery update warning (might not exist):', delError);
+    }
+
+    // 2.2 Cancel Installments
+    const { error: instError } = await supabase
+      .from('installments')
+      .update({ status: InstallmentStatus.CANCELLED })
+      .eq('sale_id', saleId)
+      .eq('status', InstallmentStatus.PENDING); // Only cancel those not yet paid
+
+    if (instError) {
+      console.warn('[store] updateSaleStatus - Installments update warning (might not exist):', instError);
     }
   }
 

@@ -150,9 +150,12 @@ const Dashboard: React.FC<DashboardProps> = ({
     d.status === DeliveryStatus.PENDING || d.status === DeliveryStatus.ASSIGNED
   ).length;
 
-  const overdueInstallments = installments.filter(i =>
-    i.status === InstallmentStatus.PENDING && i.dueDate < Date.now()
-  ).length;
+  const overdueInstallments = installments.filter(i => {
+    const sale = sales.find(s => s.id === i.saleId);
+    return i.status === InstallmentStatus.PENDING && 
+           i.dueDate < Date.now() && 
+           sale?.status !== OrderStatus.CANCELLED;
+  }).length;
 
   const pendingClosings = dailyClosings.filter(c => c.status === ClosingStatus.PENDING).length;
 

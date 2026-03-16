@@ -25,7 +25,8 @@ export enum OrderStatus {
 export enum InstallmentStatus {
   PENDING = 'Pendente',
   PAID = 'Pago',
-  OVERDUE = 'Atrasado'
+  OVERDUE = 'Atrasado',
+  CANCELLED = 'Cancelado'
 }
 
 // Status de Entrega

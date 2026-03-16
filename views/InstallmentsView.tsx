@@ -27,10 +27,10 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
     const today = Date.now();
     const processedInstallments = installments
         .filter(i => {
-            if (userRole === 'gerente') return true;
-            // Find the sale for this installment to check the seller
             const sale = sales.find(s => s.id === i.saleId);
-            return sale?.sellerId === userId;
+            if (!sale || sale.status === OrderStatus.CANCELLED) return false;
+            if (userRole === 'gerente') return true;
+            return sale.sellerId === userId;
         })
         .map(i => ({
             ...i,
