@@ -469,7 +469,23 @@ export const upsertCustomer = async (customer: Partial<Customer>) => {
     console.error('[store] upsertCustomer error:', error);
     throw error;
   }
-  return data;
+  
+  return {
+    id: data.id,
+    name: data.name,
+    cpf: data.cpf,
+    phone: data.phone,
+    email: data.email,
+    address: data.address,
+    addressNumber: data.address_number,
+    neighborhood: data.neighborhood,
+    city: data.city,
+    zipCode: data.zip_code,
+    state: data.state,
+    complement: data.complement,
+    createdAt: new Date(data.created_at).getTime(),
+    createdBy: data.created_by
+  };
 };
 
 export const upsertCustomerProfile = async (customer: Partial<Customer> & { avatar?: string }, token?: string) => {

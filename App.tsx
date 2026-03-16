@@ -903,8 +903,8 @@ const App: React.FC = () => {
     try {
       const newCustomerData = {
         ...customer,
-        created_at: new Date().toISOString(),
-        created_by: session?.id || null,
+        createdAt: Date.now(),
+        createdBy: session?.id || null,
       };
 
       const created = await upsertCustomer(newCustomerData);
