@@ -42,11 +42,42 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     const [chartYear, setChartYear] = React.useState(new Date().getFullYear());
     const [instDrill, setInstDrill] = React.useState<{ level: 'month' | 'day'; month: number | null; year: number | null }>({ level: 'month', month: null, year: null });
     const [showFilters, setShowFilters] = React.useState(false);
+    const [selectedSaleId, setSelectedSaleId] = React.useState<string | null>(null);
+    const [datePreset, setDatePreset] = React.useState<'mes' | '60' | '90' | 'tudo' | 'custom'>('tudo');
     const [filters, setFilters] = React.useState<{
         dateFrom: string; dateTo: string; seller: string; channel: string;
         city: string; neighborhood: string; customer: string; payCategory: string; payMethod: string; overdue: string;
     }>({ dateFrom: '', dateTo: '', seller: '', channel: '', city: '', neighborhood: '', customer: '', payCategory: '', payMethod: '', overdue: '' });
-    const clearFilters = () => setFilters({ dateFrom: '', dateTo: '', seller: '', channel: '', city: '', neighborhood: '', customer: '', payCategory: '', payMethod: '', overdue: '' });
+    
+    // Auto-fill dates based on preset
+    React.useEffect(() => {
+        const now = new Date();
+        const fmtDate = (d: Date) => d.toISOString().split('T')[0];
+        
+        const updateRange = (from: string, to: string) => {
+            setFilters(prev => ({ ...prev, dateFrom: from, dateTo: to }));
+        };
+
+        if (datePreset === 'mes') {
+            const start = new Date(now.getFullYear(), now.getMonth(), 1);
+            updateRange(fmtDate(start), fmtDate(now));
+        } else if (datePreset === '60') {
+            const start = new Date();
+            start.setDate(now.getDate() - 60);
+            updateRange(fmtDate(start), fmtDate(now));
+        } else if (datePreset === '90') {
+            const start = new Date();
+            start.setDate(now.getDate() - 90);
+            updateRange(fmtDate(start), fmtDate(now));
+        } else if (datePreset === 'tudo') {
+            updateRange('', '');
+        }
+    }, [datePreset]);
+
+    const clearFilters = () => {
+        setDatePreset('tudo');
+        setFilters({ dateFrom: '', dateTo: '', seller: '', channel: '', city: '', neighborhood: '', customer: '', payCategory: '', payMethod: '', overdue: '' });
+    };
     const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
 
     // --- CORE DATA (with filters applied) ---
@@ -254,19 +285,50 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                 </header>
 
                 {/* FILTER BAR */}
-                <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${showFilters || activeFilterCount > 0 ? 'bg-primary text-white shadow-lg shadow-primary/25' : 'bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 hover:border-primary hover:text-primary'}`}>
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* Preset Buttons */}
+                        <div className="flex items-center bg-white dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            {[
+                                { id: 'mes', label: 'Este Mês' },
+                                { id: '60', label: '60 Dias' },
+                                { id: '90', label: '90 Dias' },
+                                { id: 'tudo', label: 'Tudo' },
+                                { id: 'custom', label: 'Personalizado' },
+                            ].map((p) => (
+                                <button
+                                    key={p.id}
+                                    onClick={() => {
+                                        setDatePreset(p.id as any);
+                                        if (p.id === 'custom') setShowFilters(true);
+                                    }}
+                                    className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${datePreset === p.id ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                                >
+                                    {p.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
+
+                        <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${showFilters || activeFilterCount > 0 ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 hover:border-primary hover:text-primary'}`}>
                             <span className="material-symbols-outlined text-sm">tune</span> Filtros
-                            {activeFilterCount > 0 && <span className="size-5 bg-white/25 rounded-full flex items-center justify-center text-[9px]">{activeFilterCount}</span>}
+                            {activeFilterCount > 0 && <span className="size-5 bg-primary rounded-full flex items-center justify-center text-[9px] text-white ml-1">{activeFilterCount}</span>}
                         </button>
-                        {activeFilterCount > 0 && <button onClick={clearFilters} className="text-[9px] font-black text-red-500 hover:text-red-600 uppercase tracking-widest px-3 py-2">✕ Limpar</button>}
+                        {activeFilterCount > 0 && <button onClick={clearFilters} className="text-[9px] font-black text-red-500 hover:text-red-600 uppercase tracking-widest px-3 py-2 transition-colors">✕ Limpar Tudo</button>}
                     </div>
+
                     {showFilters && (
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 animate-in slide-in-from-top-2 duration-200">
-                            {/* Date Range */}
-                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Data Início</label><input type="date" value={filters.dateFrom} onChange={e => setFilters(p => ({ ...p, dateFrom: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary" /></div>
-                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Data Fim</label><input type="date" value={filters.dateTo} onChange={e => setFilters(p => ({ ...p, dateTo: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary" /></div>
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-[28px] shadow-xl border border-slate-100 dark:border-slate-700 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 animate-in slide-in-from-top-4 duration-300">
+                            {/* Date Range showing only if Custom or filters are active */}
+                            <div className={datePreset !== 'custom' ? 'opacity-50 pointer-events-none' : ''}>
+                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block ml-1">Data Início</label>
+                                <input type="date" value={filters.dateFrom} onChange={e => setFilters(p => ({ ...p, dateFrom: e.target.value }))} className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
+                            </div>
+                            <div className={datePreset !== 'custom' ? 'opacity-50 pointer-events-none' : ''}>
+                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block ml-1">Data Fim</label>
+                                <input type="date" value={filters.dateTo} onChange={e => setFilters(p => ({ ...p, dateTo: e.target.value }))} className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
+                            </div>
                             {/* Seller */}
                             <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Vendedor</label><select value={filters.seller} onChange={e => setFilters(p => ({ ...p, seller: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todos</option>{team.filter(t => t.role === 'vendedor').map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
                             {/* Channel */}
@@ -289,7 +351,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
 
                 {/* ROW 1 - KPI CARDS */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <KpiCard icon="payments" label="Faturamento Total" value={fmt(totalRevenue)} sub={`Online ${fmt(onlineRevenue)} · Presencial ${fmt(presencialRevenue)}`} gradient="from-slate-700 to-slate-900" onClick={() => setActiveModal('faturamento')} badge="Live" />
+                    <KpiCard icon="payments" label="Faturamento Total" value={fmt(totalRevenue)} sub={`${activeSales.length} vendas · Online ${fmt(onlineRevenue)} · Presencial ${fmt(presencialRevenue)}`} gradient="from-slate-700 to-slate-900" onClick={() => setActiveModal('faturamento')} badge="Live" />
                     <KpiCard icon="account_balance" label="À Vista vs A Prazo" value={fmt(cashRevenue)} sub={`A Prazo: ${fmt(termRevenue)}`} gradient="from-blue-500 to-blue-700" onClick={() => setActiveModal('avista')} />
                     <KpiCard icon="credit_score" label="Parcelas Pendentes" value={fmt(pendingInstTotal)} sub={overdueTotal > 0 ? `⚠ ${fmt(overdueTotal)} em atraso` : 'Nenhuma em atraso'} gradient="from-violet-500 to-indigo-600" onClick={() => setActiveModal('parcelas')} />
                     <KpiCard icon="savings" label="Prestação de Contas" value={fmt(unclosedAmount)} sub={`Já fechado: ${fmt(closedAmount)} de ${fmt(cashRevenue)}`} gradient={unclosedAmount > 0 ? 'from-slate-500 to-slate-700' : 'from-emerald-500 to-teal-600'} onClick={() => setActiveModal('fechamento')} badge={unclosedAmount > 0 ? 'Pendente' : '✓'} />
@@ -538,7 +600,11 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                             </div>
                             <div className="space-y-2 max-h-64 overflow-y-auto">
                                 {installmentDetails.slice(0, 20).map(inst => (
-                                    <div key={inst.id} className={`flex items-center justify-between p-3 rounded-xl ${inst.dueDate < Date.now() ? 'bg-red-50 dark:bg-red-900/10' : 'bg-slate-50 dark:bg-slate-900'}`}>
+                                    <div 
+                                        key={inst.id} 
+                                        onClick={() => setSelectedSaleId(inst.saleId)}
+                                        className={`flex items-center justify-between p-3 rounded-xl cursor-pointer hover:brightness-95 active:scale-[0.98] transition-all ${inst.dueDate < Date.now() ? 'bg-red-50 dark:bg-red-900/10' : 'bg-slate-50 dark:bg-slate-900'}`}
+                                    >
                                         <div><p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{inst.customerName}</p><p className="text-[9px] text-slate-400">Vendedor: {inst.sellerName} · {new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p></div>
                                         <span className="text-[11px] font-black text-slate-900 dark:text-white">{fmt(inst.amount)}</span>
                                     </div>
@@ -598,6 +664,70 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                                 );
                             })}
                         </div>
+                    </Modal>
+                )}
+
+                {/* Sale Detail Modal (Drill-down) */}
+                {selectedSaleId && (
+                    <Modal 
+                        title="Detalhes da Venda" 
+                        icon="receipt_long" 
+                        color="from-primary to-blue-700" 
+                        onClose={() => setSelectedSaleId(null)}
+                    >
+                        {(() => {
+                            const sale = sales.find(s => s.id === selectedSaleId);
+                            if (!sale) return <p className="text-center py-4 text-slate-400">Venda não encontrada</p>;
+                            const customer = customers.find(c => c.id === sale.customerId);
+                            return (
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cliente</p>
+                                            <h4 className="font-black text-slate-900 dark:text-white">{sale.customerName}</h4>
+                                            <p className="text-xs text-slate-500">{customer?.phone || 'Telefone não informado'}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Data</p>
+                                            <p className="text-sm font-bold">{new Date(sale.createdAt).toLocaleDateString('pt-BR')} {new Date(sale.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Produtos</p>
+                                        <div className="space-y-2">
+                                            {sale.items.map((item, idx) => (
+                                                <div key={idx} className="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-black text-primary">x{item.quantity}</span>
+                                                        <span className="text-xs font-bold">{item.basketName}</span>
+                                                    </div>
+                                                    <span className="text-xs font-black">{fmt(item.unitPrice * item.quantity)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Pagamento</p>
+                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{sale.paymentMethod}</p>
+                                            <p className="text-[10px] text-primary font-bold">{sale.paymentSubMethod || 'Direto'}</p>
+                                        </div>
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
+                                            <p className="text-lg font-black text-primary">{fmt(sale.total)}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/30">
+                                        <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Origem / Entrega</p>
+                                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Vendedor: {sale.sellerName || 'Online'}</p>
+                                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Cidade: {customer?.city || '-'} · Bairro: {customer?.neighborhood || '-'}</p>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </Modal>
                 )}
 
