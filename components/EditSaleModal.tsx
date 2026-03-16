@@ -25,18 +25,59 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({
     const [notes, setNotes] = useState(sale.notes || '');
     
     // Installments editing
-    const saleInstallments = installments
+    const initialInstallments = installments
         .filter(i => i.saleId === sale.id)
         .sort((a, b) => a.number - b.number);
     
-    const [instDates, setInstDates] = useState<number[]>(
-        saleInstallments.map(i => i.dueDate)
+    const [editableInstallments, setEditableInstallments] = useState(
+        initialInstallments.map(i => ({ dueDate: i.dueDate, amount: i.amount }))
     );
 
-    const handleDateChange = (index: number, dateStr: string) => {
-        const newDates = [...instDates];
-        newDates[index] = new Date(dateStr).getTime();
-        setInstDates(newDates);
+    const handleNumInstallmentsChange = (count: number) => {
+        const newCount = Math.max(1, count);
+        let newInsts = [...editableInstallments];
+        
+        if (newCount > newInsts.length) {
+            // Add new installments
+            for (let i = newInsts.length; i < newCount; i++) {
+                const lastDate = newInsts.length > 0 ? newInsts[newInsts.length - 1].dueDate : Date.now();
+                const nextDate = new Date(lastDate);
+                nextDate.setMonth(nextDate.getMonth() + 1);
+                
+                newInsts.push({
+                    dueDate: nextDate.getTime(),
+                    amount: 0 // New installment defaults to 0
+                });
+            }
+        } else {
+            // Remove installments
+            newInsts = newInsts.slice(0, newCount);
+        }
+        setEditableInstallments(newInsts);
+    };
+
+    const updateInstallment = (index: number, field: 'dueDate' | 'amount', value: any) => {
+        const newInsts = [...editableInstallments];
+        if (field === 'dueDate') {
+            newInsts[index].dueDate = new Date(value).getTime();
+        } else {
+            newInsts[index].amount = parseFloat(value) || 0;
+        }
+        setEditableInstallments(newInsts);
+    };
+
+    const redistributeTotal = () => {
+        const totalVal = parseFloat(total) || 0;
+        if (editableInstallments.length === 0) return;
+        
+        const partialAmount = Math.floor((totalVal / editableInstallments.length) * 100) / 100;
+        const remainder = Math.round((totalVal - (partialAmount * editableInstallments.length)) * 100) / 100;
+        
+        const newInsts = editableInstallments.map((inst, idx) => ({
+            ...inst,
+            amount: idx === 0 ? partialAmount + remainder : partialAmount
+        }));
+        setEditableInstallments(newInsts);
     };
 
     const handleSave = () => {
@@ -48,10 +89,16 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({
             notes,
         };
 
-        const updatedInstallments = saleInstallments.map((inst, index) => ({
-            ...inst,
-            dueDate: instDates[index],
-            amount: updatedSaleData.total! / saleInstallments.length // Recalculate if total changed
+        const updatedInstallments = editableInstallments.map((inst, index) => ({
+            id: initialInstallments[index]?.id || undefined, // Keep ID if it exists (reusing old slots)
+            saleId: sale.id,
+            customerId: customerId,
+            customerName: updatedSaleData.customerName,
+            number: index + 1,
+            totalInstallments: editableInstallments.length,
+            dueDate: inst.dueDate,
+            amount: inst.amount,
+            status: initialInstallments[index]?.status || 'Pendente'
         }));
 
         onSave(sale.id, updatedSaleData, sale.items, updatedInstallments);
@@ -68,18 +115,13 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({
                 </div>
 
                 <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto no-scrollbar">
-                    {/* Customer */}
+                    {/* Customer (Read Only) */}
                     <div>
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Cliente</label>
-                        <select
-                            value={customerId}
-                            onChange={(e) => setCustomerId(e.target.value)}
-                            className="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
-                        >
-                            {customers.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
+                        <div className="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center">
+                            <span className="font-bold text-slate-500">{customers.find(c => c.id === customerId)?.name || sale.customerName}</span>
+                            <span className="material-symbols-outlined ml-auto text-slate-300 text-sm">lock</span>
+                        </div>
                     </div>
 
                     {/* Total & Payment Method */}
@@ -111,21 +153,65 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({
                         </div>
                     </div>
 
-                    {/* Installments Dates */}
-                    {paymentMethod === PaymentMethod.TERM && instDates.length > 0 && (
-                        <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-primary">Datas das Parcelas</p>
-                            {instDates.map((date, idx) => (
-                                <div key={idx} className="flex items-center justify-between gap-4">
-                                    <span className="text-xs font-bold text-slate-500">Parcela {idx + 1}</span>
+                    {/* Installments Editing */}
+                    {paymentMethod === PaymentMethod.TERM && (
+                        <div className="space-y-4 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-[24px] border border-slate-100 dark:border-slate-700/50">
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-primary">Configurar Parcelas</p>
+                                <button 
+                                    onClick={redistributeTotal}
+                                    className="text-[10px] font-black uppercase text-blue-600 hover:underline"
+                                >
+                                    Dividir Automático
+                                </button>
+                            </div>
+                            
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="flex-1">
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase mb-1 block">Nº de Parcelas</label>
                                     <input
-                                        type="date"
-                                        value={new Date(date).toISOString().split('T')[0]}
-                                        onChange={(e) => handleDateChange(idx, e.target.value)}
-                                        className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold"
+                                        type="number"
+                                        min="1"
+                                        max="24"
+                                        value={editableInstallments.length}
+                                        onChange={(e) => handleNumInstallmentsChange(parseInt(e.target.value))}
+                                        className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
                                     />
                                 </div>
-                            ))}
+                            </div>
+
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
+                                {editableInstallments.map((inst, idx) => (
+                                    <div key={idx} className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase">Parcela {idx + 1}</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[8px] font-bold text-slate-400 uppercase block mb-1">Vencimento</label>
+                                                <input
+                                                    type="date"
+                                                    value={new Date(inst.dueDate).toISOString().split('T')[0]}
+                                                    onChange={(e) => updateInstallment(idx, 'dueDate', e.target.value)}
+                                                    className="w-full h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[8px] font-bold text-slate-400 uppercase block mb-1">Valor</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">R$</span>
+                                                    <input
+                                                        type="number"
+                                                        value={inst.amount}
+                                                        onChange={(e) => updateInstallment(idx, 'amount', e.target.value)}
+                                                        className="w-full h-9 pl-7 pr-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-bold"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 
