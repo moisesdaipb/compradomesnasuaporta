@@ -52,7 +52,7 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
             return true;
         })
         .filter(i =>
-            i.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+                (i.customerName || '').toLowerCase().includes(searchQuery.toLowerCase())
         )
         .sort((a, b) => a.dueDate - b.dueDate);
 
