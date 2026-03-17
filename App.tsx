@@ -1155,26 +1155,26 @@ const App: React.FC = () => {
       };
 
       const mappedItems = items.map(i => ({
-        sale_id: saleId,
-        basket_model_id: i.basketModelId,
-        basket_name: i.basketName,
+        saleId: saleId,
+        basketModelId: i.basketModelId || i.basket_model_id,
+        basketName: i.basketName || i.basket_name,
         quantity: i.quantity,
-        unit_price: i.unitPrice
+        unitPrice: i.unitPrice || i.unit_price
       }));
 
       const mappedInstallments = installments.map(i => ({
         id: i.id || undefined,
-        sale_id: saleId,
-        customer_id: i.customerId,
-        customer_name: i.customerName,
+        saleId: saleId,
+        customerId: i.customerId || i.customer_id,
+        customerName: i.customerName || i.customer_name,
         number: i.number,
-        total_installments: i.totalInstallments,
+        totalInstallments: i.totalInstallments || i.total_installments,
         amount: i.amount,
-        due_date: typeof i.dueDate === 'number' ? new Date(i.dueDate).toISOString().split('T')[0] : i.dueDate,
+        dueDate: typeof i.dueDate === 'number' ? new Date(i.dueDate).toISOString().split('T')[0] : (i.dueDate || i.due_date),
         status: i.status || 'Pendente',
-        paid_at: i.paidAt ? (typeof i.paidAt === 'number' ? new Date(i.paidAt).toISOString() : i.paidAt) : null,
-        payment_method: i.paymentMethod || null,
-        received_by: i.receivedBy || null
+        paidAt: i.paidAt ? (typeof i.paidAt === 'number' ? new Date(i.paidAt).toISOString() : i.paidAt) : null,
+        paymentMethod: i.paymentMethod || i.payment_method || null,
+        receivedBy: i.receivedBy || i.received_by || null
       }));
 
       await updateCompleteSale(saleId, mappedSaleData, mappedItems, mappedInstallments);
@@ -1209,28 +1209,27 @@ const App: React.FC = () => {
         installmentsCount: installments.length
       };
 
-      // The RPC expects snake_case for bulk operations
       const itemsToUpdate = (sale.items || []).map((i: any) => ({
-        sale_id: saleId,
-        basket_model_id: i.basketModelId,
-        basket_name: i.basketName,
+        saleId: saleId,
+        basketModelId: i.basketModelId || i.basket_model_id,
+        basketName: i.basketName || i.basket_name,
         quantity: i.quantity,
-        unit_price: i.unitPrice
+        unitPrice: i.unitPrice || i.unit_price
       }));
 
       const installmentsToUpdate = installments.map(i => ({
         id: i.id || undefined,
-        sale_id: saleId,
-        customer_id: i.customerId,
-        customer_name: i.customerName,
+        saleId: saleId,
+        customerId: i.customerId || i.customer_id,
+        customerName: i.customerName || i.customer_name,
         number: i.number,
-        total_installments: i.totalInstallments,
+        totalInstallments: i.totalInstallments || i.total_installments || installments.length,
         amount: i.amount,
-        due_date: typeof i.dueDate === 'number' ? new Date(i.dueDate).toISOString().split('T')[0] : i.dueDate,
+        dueDate: typeof i.dueDate === 'number' ? new Date(i.dueDate).toISOString().split('T')[0] : (i.dueDate || i.due_date),
         status: i.status || 'Pendente',
-        paid_at: i.paidAt ? (typeof i.paidAt === 'number' ? new Date(i.paidAt).toISOString() : i.paidAt) : null,
-        payment_method: i.paymentMethod || null,
-        received_by: i.receivedBy || null
+        paidAt: i.paidAt ? (typeof i.paidAt === 'number' ? new Date(i.paidAt).toISOString() : i.paidAt) : null,
+        paymentMethod: i.paymentMethod || i.payment_method || null,
+        receivedBy: i.receivedBy || i.received_by || null
       }));
 
       await updateCompleteSale(saleId, saleData, itemsToUpdate, installmentsToUpdate);
