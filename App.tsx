@@ -1170,9 +1170,11 @@ const App: React.FC = () => {
         number: i.number,
         totalInstallments: i.totalInstallments || i.total_installments,
         amount: i.amount,
-        dueDate: typeof i.dueDate === 'number' ? new Date(i.dueDate).toISOString().split('T')[0] : (i.dueDate || i.due_date),
+        dueDate: (typeof i.dueDate === 'string' ? new Date(i.dueDate).getTime() : i.dueDate) || 
+                 (typeof i.due_date === 'string' ? new Date(i.due_date).getTime() : i.due_date),
         status: i.status || 'Pendente',
-        paidAt: i.paidAt ? (typeof i.paidAt === 'number' ? new Date(i.paidAt).toISOString() : i.paidAt) : null,
+        paidAt: (typeof i.paidAt === 'string' ? new Date(i.paidAt).getTime() : i.paidAt) || 
+                (typeof i.paid_at === 'string' ? new Date(i.paid_at).getTime() : i.paid_at) || null,
         paymentMethod: i.paymentMethod || i.payment_method || null,
         receivedBy: i.receivedBy || i.received_by || null
       }));
@@ -1225,9 +1227,11 @@ const App: React.FC = () => {
         number: i.number,
         totalInstallments: i.totalInstallments || i.total_installments || installments.length,
         amount: i.amount,
-        dueDate: typeof i.dueDate === 'number' ? new Date(i.dueDate).toISOString().split('T')[0] : (i.dueDate || i.due_date),
+        dueDate: (typeof i.dueDate === 'string' ? new Date(i.dueDate).getTime() : i.dueDate) || 
+                 (typeof i.due_date === 'string' ? new Date(i.due_date).getTime() : i.due_date),
         status: i.status || 'Pendente',
-        paidAt: i.paidAt ? (typeof i.paidAt === 'number' ? new Date(i.paidAt).toISOString() : i.paidAt) : null,
+        paidAt: (typeof i.paidAt === 'string' ? new Date(i.paidAt).getTime() : i.paidAt) || 
+                (typeof i.paid_at === 'string' ? new Date(i.paid_at).getTime() : i.paid_at) || null,
         paymentMethod: i.paymentMethod || i.payment_method || null,
         receivedBy: i.receivedBy || i.received_by || null
       }));

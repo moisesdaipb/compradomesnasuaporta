@@ -51,8 +51,14 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
     }, [editableInstallments, installment.id]);
 
     const handleReceivedAmountChange = (value: string) => {
+        // Validate input - allow empty, digits, and a single decimal separator
+        if (value !== '' && !/^\d*[.,]?\d*$/.test(value)) return;
+        
         setReceivedAmount(value);
-        const amount = parseFloat(value) || 0;
+        
+        // Convert comma to dot for parsing
+        const floatStr = value.replace(',', '.');
+        const amount = parseFloat(floatStr) || 0;
         
         // Update the current installment in our editable list
         const newInsts = [...editableInstallments];
@@ -221,7 +227,8 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
                         <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-primary/40 italic">R$</span>
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 autoFocus
                                 value={receivedAmount}
                                 onChange={(e) => handleReceivedAmountChange(e.target.value)}
