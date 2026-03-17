@@ -369,6 +369,7 @@ export const fetchInstallments = async (): Promise<Installment[]> => {
   const { data, error } = await supabase
     .from('installments')
     .select('*')
+    .limit(10000)
     .order('due_date', { ascending: true });
 
   if (error) throw error;
@@ -402,6 +403,7 @@ export const fetchDailyClosings = async (): Promise<DailyClosing[]> => {
   const { data: closings, error: closingsError } = await supabase
     .from('daily_closings')
     .select('*')
+    .limit(10000)
     .order('created_at', { ascending: false });
 
   if (closingsError) throw closingsError;
@@ -409,7 +411,8 @@ export const fetchDailyClosings = async (): Promise<DailyClosing[]> => {
   // 2. Fetch all receipts to link sales
   const { data: receipts, error: receiptsError } = await supabase
     .from('daily_receipts')
-    .select('*');
+    .select('*')
+    .limit(10000);
 
   if (receiptsError) throw receiptsError;
 
@@ -1086,6 +1089,7 @@ export const fetchStockEntries = async (): Promise<StockEntry[]> => {
   const { data, error } = await supabase
     .from('stock_entries')
     .select('*')
+    .limit(10000)
     .order('received_at', { ascending: false });
 
   if (error) {
@@ -1193,6 +1197,7 @@ export const fetchGoals = async (): Promise<SaleGoal[]> => {
   const { data, error } = await supabase
     .from('sale_goals')
     .select('*')
+    .limit(10000)
     .order('start_date', { ascending: false });
 
   if (error) {
