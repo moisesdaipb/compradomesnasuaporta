@@ -160,30 +160,32 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
             const installmentsToSave = [
                 ...paidInstallments.map(i => ({
                     id: i.id,
-                    sale_id: sale.id,
-                    customer_id: i.customerId,
-                    customer_name: i.customerName,
+                    saleId: sale.id,
+                    customerId: i.customerId,
+                    customerName: i.customerName,
                     number: i.number,
-                    total_installments: editableInstallments.length + paidInstallments.length,
+                    totalInstallments: editableInstallments.length + paidInstallments.length,
                     amount: i.amount,
-                    due_date: new Date(i.dueDate).toISOString().split('T')[0],
-                    status: i.status
+                    dueDate: i.dueDate,
+                    status: i.status,
+                    paidAt: i.paidAt,
+                    paymentMethod: i.paymentMethod
                 })),
                 ...editableInstallments.map((i, idx) => {
                     const isBeingPaid = i.id === installment.id && i.amount > 0;
                     return {
                         id: i.id,
-                        sale_id: sale.id,
-                        customer_id: sale.customerId,
-                        customer_name: sale.customerName,
+                        saleId: sale.id,
+                        customerId: sale.customerId,
+                        customerName: sale.customerName,
                         number: idx + paidInstallments.length + 1,
-                        total_installments: editableInstallments.length + paidInstallments.length,
+                        totalInstallments: editableInstallments.length + paidInstallments.length,
                         amount: i.amount,
-                        due_date: new Date(i.dueDate).toISOString().split('T')[0],
+                        dueDate: i.dueDate,
                         status: isBeingPaid ? InstallmentStatus.PAID : i.status,
                         // If it's being paid now, we set the date and the selected method
-                        paid_at: isBeingPaid ? new Date().toISOString() : undefined,
-                        payment_method: isBeingPaid ? selectedMethod : i.paymentMethod
+                        paidAt: isBeingPaid ? Date.now() : i.paidAt,
+                        paymentMethod: isBeingPaid ? selectedMethod : i.paymentMethod
                     };
                 })
             ];
