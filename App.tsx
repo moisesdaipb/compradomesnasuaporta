@@ -1145,38 +1145,56 @@ const App: React.FC = () => {
 
       const mappedSaleData = {
         customerId: saleData.customerId,
+        customer_id: saleData.customerId,
         customerName: saleData.customerName || '',
+        customer_name: saleData.customerName || '',
         total: saleData.total,
         paymentMethod: saleData.paymentMethod || PaymentMethod.TERM,
+        payment_method: saleData.paymentMethod || PaymentMethod.TERM,
         status: saleData.status,
         notes: saleData.notes || null,
         channel: saleData.channel || 'presencial',
-        installmentsCount: installments.length
+        installmentsCount: installments.length,
+        installments_count: installments.length
       };
 
       const mappedItems = items.map(i => ({
         saleId: saleId,
+        sale_id: saleId,
         basketModelId: i.basketModelId || i.basket_model_id,
+        basket_model_id: i.basketModelId || i.basket_model_id,
         basketName: i.basketName || i.basket_name,
+        basket_name: i.basketName || i.basket_name,
         quantity: i.quantity,
-        unitPrice: i.unitPrice || i.unit_price
+        unitPrice: i.unitPrice || i.unit_price,
+        unit_price: i.unitPrice || i.unit_price
       }));
 
       const mappedInstallments = installments.map(i => ({
         id: i.id || undefined,
         saleId: saleId,
+        sale_id: saleId,
         customerId: i.customerId || i.customer_id,
+        customer_id: i.customerId || i.customer_id,
         customerName: i.customerName || i.customer_name,
+        customer_name: i.customerName || i.customer_name,
         number: i.number,
         totalInstallments: i.totalInstallments || i.total_installments,
+        total_installments: i.totalInstallments || i.total_installments,
         amount: i.amount,
         dueDate: (typeof i.dueDate === 'string' ? new Date(i.dueDate).getTime() : i.dueDate) || 
+                 (typeof i.due_date === 'string' ? new Date(i.due_date).getTime() : i.due_date),
+        due_date: (typeof i.dueDate === 'string' ? new Date(i.dueDate).getTime() : i.dueDate) || 
                  (typeof i.due_date === 'string' ? new Date(i.due_date).getTime() : i.due_date),
         status: i.status || 'Pendente',
         paidAt: (typeof i.paidAt === 'string' ? new Date(i.paidAt).getTime() : i.paidAt) || 
                 (typeof i.paid_at === 'string' ? new Date(i.paid_at).getTime() : i.paid_at) || null,
+        paid_at: (typeof i.paidAt === 'string' ? new Date(i.paidAt).getTime() : i.paidAt) || 
+                (typeof i.paid_at === 'string' ? new Date(i.paid_at).getTime() : i.paid_at) || null,
         paymentMethod: i.paymentMethod || i.payment_method || null,
-        receivedBy: i.receivedBy || i.received_by || null
+        payment_method: i.paymentMethod || i.payment_method || null,
+        receivedBy: i.receivedBy || i.received_by || null,
+        received_by: i.receivedBy || i.received_by || null
       }));
 
       await updateCompleteSale(saleId, mappedSaleData, mappedItems, mappedInstallments);
@@ -1202,38 +1220,56 @@ const App: React.FC = () => {
 
       const saleData = {
         customerId: sale.customerId,
+        customer_id: sale.customerId,
         customerName: sale.customerName,
+        customer_name: sale.customerName,
         total: sale.total,
         paymentMethod: sale.paymentMethod || PaymentMethod.TERM,
+        payment_method: sale.paymentMethod || PaymentMethod.TERM,
         status: sale.status,
         notes: sale.notes || null,
         channel: sale.channel || 'presencial',
-        installmentsCount: installments.length
+        installmentsCount: installments.length,
+        installments_count: installments.length
       };
 
       const itemsToUpdate = (sale.items || []).map((i: any) => ({
         saleId: saleId,
+        sale_id: saleId,
         basketModelId: i.basketModelId || i.basket_model_id,
+        basket_model_id: i.basketModelId || i.basket_model_id,
         basketName: i.basketName || i.basket_name,
+        basket_name: i.basketName || i.basket_name,
         quantity: i.quantity,
-        unitPrice: i.unitPrice || i.unit_price
+        unitPrice: i.unitPrice || i.unit_price,
+        unit_price: i.unitPrice || i.unit_price
       }));
 
       const installmentsToUpdate = installments.map(i => ({
         id: i.id || undefined,
         saleId: saleId,
+        sale_id: saleId,
         customerId: i.customerId || i.customer_id,
+        customer_id: i.customerId || i.customer_id,
         customerName: i.customerName || i.customer_name,
+        customer_name: i.customerName || i.customer_name,
         number: i.number,
         totalInstallments: i.totalInstallments || i.total_installments || installments.length,
+        total_installments: i.totalInstallments || i.total_installments || installments.length,
         amount: i.amount,
         dueDate: (typeof i.dueDate === 'string' ? new Date(i.dueDate).getTime() : i.dueDate) || 
+                 (typeof i.due_date === 'string' ? new Date(i.due_date).getTime() : i.due_date),
+        due_date: (typeof i.dueDate === 'string' ? new Date(i.dueDate).getTime() : i.dueDate) || 
                  (typeof i.due_date === 'string' ? new Date(i.due_date).getTime() : i.due_date),
         status: i.status || 'Pendente',
         paidAt: (typeof i.paidAt === 'string' ? new Date(i.paidAt).getTime() : i.paidAt) || 
                 (typeof i.paid_at === 'string' ? new Date(i.paid_at).getTime() : i.paid_at) || null,
+        paid_at: (typeof i.paidAt === 'string' ? new Date(i.paidAt).getTime() : i.paidAt) || 
+                (typeof i.paid_at === 'string' ? new Date(i.paid_at).getTime() : i.paid_at) || null,
         paymentMethod: i.paymentMethod || i.payment_method || null,
-        receivedBy: i.receivedBy || i.received_by || null
+        payment_method: i.paymentMethod || i.payment_method || null,
+        receivedBy: i.receivedBy || i.received_by || null,
+        received_by: i.receivedBy || i.received_by || null
       }));
 
       await updateCompleteSale(saleId, saleData, itemsToUpdate, installmentsToUpdate);
