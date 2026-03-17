@@ -1174,13 +1174,29 @@ const App: React.FC = () => {
 
       // The RPC expects camelCase keys matching the frontend objects
       const itemsToUpdate = (sale.items || []).map((i: any) => ({
-        basketModelId: i.basketModelId,
-        basketName: i.basketName,
+        sale_id: saleId,
+        basket_model_id: i.basketModelId,
+        basket_name: i.basketName,
         quantity: i.quantity,
-        unitPrice: i.unitPrice
+        unit_price: i.unitPrice
       }));
 
-      await updateCompleteSale(saleId, saleData, itemsToUpdate, installments);
+      const installmentsToUpdate = installments.map(i => ({
+        id: i.id || undefined,
+        sale_id: saleId,
+        customer_id: i.customerId,
+        customer_name: i.customerName,
+        number: i.number,
+        total_installments: i.totalInstallments,
+        amount: i.amount,
+        due_date: typeof i.dueDate === 'number' ? new Date(i.dueDate).toISOString().split('T')[0] : i.dueDate,
+        status: i.status || 'Pendente',
+        paid_at: i.paidAt ? new Date(i.paidAt).toISOString() : null,
+        payment_method: i.paymentMethod || null,
+        received_by: i.receivedBy || null
+      }));
+
+      await updateCompleteSale(saleId, saleData, itemsToUpdate, installmentsToUpdate);
       triggerRefresh(100);
     } catch (error: any) {
       console.error('[App] handleUpdateInstallments error:', error);

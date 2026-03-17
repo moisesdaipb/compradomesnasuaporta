@@ -156,36 +156,36 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
         try {
             setIsSaving(true);
             
-            // Format for the database
+            // Format for the database - using snake_case for the array bulk insert
             const installmentsToSave = [
                 ...paidInstallments.map(i => ({
                     id: i.id,
-                    saleId: sale.id,
-                    customerId: i.customerId,
-                    customerName: i.customerName || sale.customerName,
+                    sale_id: sale.id,
+                    customer_id: i.customerId,
+                    customer_name: i.customerName || sale.customerName,
                     number: i.number,
-                    totalInstallments: editableInstallments.length + paidInstallments.length,
+                    total_installments: editableInstallments.length + paidInstallments.length,
                     amount: i.amount,
-                    dueDate: i.dueDate,
+                    due_date: typeof i.dueDate === 'number' ? new Date(i.dueDate).toISOString().split('T')[0] : i.dueDate,
                     status: i.status,
-                    paidAt: i.paidAt,
-                    paymentMethod: i.paymentMethod
+                    paid_at: i.paidAt ? new Date(i.paidAt).toISOString() : null,
+                    payment_method: i.paymentMethod || null
                 })),
                 ...editableInstallments.map((i, idx) => {
                     const isBeingPaid = i.id === installment.id && i.amount > 0;
+                    const finalStatus = isBeingPaid ? InstallmentStatus.PAID : i.status;
                     return {
-                        id: i.id,
-                        saleId: sale.id,
-                        customerId: sale.customerId,
-                        customerName: sale.customerName || installment.customerName,
+                        id: i.id || undefined,
+                        sale_id: sale.id,
+                        customer_id: sale.customerId,
+                        customer_name: sale.customerName || installment.customerName,
                         number: idx + paidInstallments.length + 1,
-                        totalInstallments: editableInstallments.length + paidInstallments.length,
+                        total_installments: editableInstallments.length + paidInstallments.length,
                         amount: i.amount,
-                        dueDate: i.dueDate,
-                        status: isBeingPaid ? InstallmentStatus.PAID : i.status,
-                        // If it's being paid now, we set the date and the selected method
-                        paidAt: isBeingPaid ? Date.now() : i.paidAt,
-                        paymentMethod: isBeingPaid ? selectedMethod : i.paymentMethod
+                        due_date: typeof i.dueDate === 'number' ? new Date(i.dueDate).toISOString().split('T')[0] : i.dueDate,
+                        status: finalStatus,
+                        paid_at: isBeingPaid ? new Date().toISOString() : (i.status === InstallmentStatus.PAID ? new Date().toISOString() : null),
+                        payment_method: isBeingPaid ? selectedMethod : (i.status === InstallmentStatus.PAID ? selectedMethod : null)
                     };
                 })
             ];
