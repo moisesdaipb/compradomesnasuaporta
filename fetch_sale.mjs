@@ -1,5 +1,5 @@
-async function run() {
-  const url = 'https://dbmptvlaogxatrnbrmkz.supabase.co/rest/v1/installments?id=eq.a93d63ed-ddf8-4bb4-b040-bf7a4a5957d5';
+async function go() {
+  const url = 'https://dbmptvlaogxatrnbrmkz.supabase.co/rest/v1/sales?id=eq.8ef75eca-6d28-46ee-b8b1-324b363dface';
   const key = 'sb_publishable_cghKQoC7cLKLdbmHPfANVQ_ZTSmY_iT';
 
   try {
@@ -7,10 +7,9 @@ async function run() {
       headers: { 'apikey': key, 'Authorization': `Bearer ${key}` } 
     });
     const data = await res.json();
-    console.log("Data for a93d63ed-ddf8-4bb4-b040-bf7a4a5957d5:");
     console.log(JSON.stringify(data, null, 2));
   } catch (err) {
-    console.error("Error:", err);
+    console.error(err);
   }
 }
-run();
+go();
