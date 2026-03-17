@@ -1145,11 +1145,13 @@ const App: React.FC = () => {
 
       const mappedSaleData = {
         customer_id: saleData.customerId,
+        customer_name: saleData.customerName || '',
         total: saleData.total,
-        payment_method: saleData.paymentMethod,
+        payment_method: saleData.paymentMethod || PaymentMethod.TERM,
         status: saleData.status,
         notes: saleData.notes || null,
-        channel: saleData.channel
+        channel: saleData.channel || 'presencial',
+        installments_count: installments.length
       };
 
       const mappedItems = items.map(i => ({
@@ -1198,11 +1200,13 @@ const App: React.FC = () => {
 
       const saleData = {
         customer_id: sale.customerId,
+        customer_name: sale.customerName,
         total: sale.total,
-        payment_method: sale.paymentMethod,
+        payment_method: sale.paymentMethod || PaymentMethod.TERM,
         status: sale.status,
         notes: sale.notes || null,
-        channel: sale.channel
+        channel: sale.channel || 'presencial',
+        installments_count: installments.length
       };
 
       // The RPC expects snake_case for bulk operations
