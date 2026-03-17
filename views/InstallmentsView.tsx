@@ -295,6 +295,7 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                     sale={sales.find(s => s.id === partialPaymentInst.saleId)!}
                     installment={partialPaymentInst}
                     allInstallments={installments}
+                    paymentMethod={selectedMethod}
                     onClose={() => setPartialPaymentInst(null)}
                     onSave={onUpdateInstallments}
                 />

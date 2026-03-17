@@ -1171,7 +1171,15 @@ const App: React.FC = () => {
         notes: sale.notes
       };
 
-      await updateCompleteSale(saleId, saleData, sale.items, installments);
+      // Items must be in snake_case for the RPC
+      const itemsToSave = (sale.items || []).map((i: any) => ({
+        basket_model_id: i.basketModelId,
+        basket_name: i.basketName,
+        quantity: i.quantity,
+        unit_price: i.unitPrice
+      }));
+
+      await updateCompleteSale(saleId, saleData, itemsToSave, installments);
       triggerRefresh(100);
     } catch (error: any) {
       console.error('[App] handleUpdateInstallments error:', error);

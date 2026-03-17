@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { Sale, Installment, InstallmentStatus } from '../types';
+import { Sale, Installment, InstallmentStatus, PaymentMethod } from '../types';
 import { formatCurrency } from '../utils';
 
 interface PartialPaymentModalProps {
     sale: Sale;
     installment: Installment;
     allInstallments: Installment[];
+    paymentMethod?: PaymentMethod | null;
     onClose: () => void;
     onSave: (saleId: string, updatedInstallments: any[]) => Promise<void>;
 }
@@ -14,6 +15,7 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
     sale,
     installment,
     allInstallments,
+    paymentMethod,
     onClose,
     onSave,
 }) => {
@@ -166,23 +168,31 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
                     due_date: new Date(i.dueDate).toISOString().split('T')[0],
                     status: i.status
                 })),
-                ...editableInstallments.map((i, idx) => ({
-                    id: i.id,
-                    sale_id: sale.id,
-                    customer_id: sale.customerId,
-                    customer_name: sale.customerName,
-                    number: idx + paidInstallments.length + 1,
-                    total_installments: editableInstallments.length + paidInstallments.length,
-                    amount: i.amount,
-                    due_date: new Date(i.dueDate).toISOString().split('T')[0],
-                    status: i.id === installment.id && i.amount > 0 ? InstallmentStatus.PAID : i.status
-                }))
+                ...editableInstallments.map((i, idx) => {
+                    const isBeingPaid = i.id === installment.id && i.amount > 0;
+                    return {
+                        id: i.id,
+                        sale_id: sale.id,
+                        customer_id: sale.customerId,
+                        customer_name: sale.customerName,
+                        number: idx + paidInstallments.length + 1,
+                        total_installments: editableInstallments.length + paidInstallments.length,
+                        amount: i.amount,
+                        due_date: new Date(i.dueDate).toISOString().split('T')[0],
+                        status: isBeingPaid ? InstallmentStatus.PAID : i.status,
+                        // If it's being paid now, we set the date and a default method 
+                        // (usually Dinheiro if not specified)
+                        paid_at: isBeingPaid ? new Date().toISOString() : undefined,
+                        payment_method: isBeingPaid ? (paymentMethod || installment.paymentMethod || PaymentMethod.CASH) : i.paymentMethod
+                    };
+                })
             ];
 
             await onSave(sale.id, installmentsToSave);
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving partial payment:', error);
+            alert('Erro ao salvar pagamento: ' + (error.message || 'Erro desconhecido'));
         } finally {
             setIsSaving(false);
         }
