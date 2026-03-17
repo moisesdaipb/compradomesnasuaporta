@@ -1142,7 +1142,40 @@ const App: React.FC = () => {
   ) => {
     try {
       setLoadingStatus('Salvando alterações...');
-      await updateCompleteSale(saleId, saleData, items, installments);
+
+      const mappedSaleData = {
+        customer_id: saleData.customerId,
+        total: saleData.total,
+        payment_method: saleData.paymentMethod,
+        status: saleData.status,
+        notes: saleData.notes || null,
+        channel: saleData.channel
+      };
+
+      const mappedItems = items.map(i => ({
+        sale_id: saleId,
+        basket_model_id: i.basketModelId,
+        basket_name: i.basketName,
+        quantity: i.quantity,
+        unit_price: i.unitPrice
+      }));
+
+      const mappedInstallments = installments.map(i => ({
+        id: i.id || undefined,
+        sale_id: saleId,
+        customer_id: i.customerId,
+        customer_name: i.customerName,
+        number: i.number,
+        total_installments: i.totalInstallments,
+        amount: i.amount,
+        due_date: typeof i.dueDate === 'number' ? new Date(i.dueDate).toISOString().split('T')[0] : i.dueDate,
+        status: i.status || 'Pendente',
+        paid_at: i.paidAt ? (typeof i.paidAt === 'number' ? new Date(i.paidAt).toISOString() : i.paidAt) : null,
+        payment_method: i.paymentMethod || null,
+        received_by: i.receivedBy || null
+      }));
+
+      await updateCompleteSale(saleId, mappedSaleData, mappedItems, mappedInstallments);
       triggerRefresh(100);
     } catch (error: any) {
       console.error('[App] handleUpdateSale error:', error);
@@ -1164,15 +1197,15 @@ const App: React.FC = () => {
       if (!sale) throw new Error('Venda não encontrada');
 
       const saleData = {
-        customerId: sale.customerId,
+        customer_id: sale.customerId,
         total: sale.total,
-        paymentMethod: sale.paymentMethod,
+        payment_method: sale.paymentMethod,
         status: sale.status,
-        notes: sale.notes,
+        notes: sale.notes || null,
         channel: sale.channel
       };
 
-      // The RPC expects camelCase keys matching the frontend objects
+      // The RPC expects snake_case for bulk operations
       const itemsToUpdate = (sale.items || []).map((i: any) => ({
         sale_id: saleId,
         basket_model_id: i.basketModelId,
@@ -1191,7 +1224,7 @@ const App: React.FC = () => {
         amount: i.amount,
         due_date: typeof i.dueDate === 'number' ? new Date(i.dueDate).toISOString().split('T')[0] : i.dueDate,
         status: i.status || 'Pendente',
-        paid_at: i.paidAt ? new Date(i.paidAt).toISOString() : null,
+        paid_at: i.paidAt ? (typeof i.paidAt === 'number' ? new Date(i.paidAt).toISOString() : i.paidAt) : null,
         payment_method: i.paymentMethod || null,
         received_by: i.receivedBy || null
       }));
