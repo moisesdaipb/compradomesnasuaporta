@@ -154,12 +154,6 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
 
             {/* Installments List */}
             <div className="flex-1 p-4 space-y-3 pb-32 overflow-y-auto">
-                {/* TEMPORARY DEBUG VISUALIZER */}
-                <div className="bg-red-100 p-2 rounded text-xs text-red-900 mb-4 whitespace-pre-wrap overflow-x-auto">
-                   DEBUG RAW DATA (cliente 4):
-                   {JSON.stringify(installments.filter(i => i.customerName?.toLowerCase().includes('cliente 4')).map(i => ({n: i.number, t: i.totalInstallments, a: i.amount})), null, 2)}
-                </div>
-                {/* END DEBUG */}
                 {filteredInstallments.length === 0 ? (
                     <div className="text-center py-10">
                         <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">payments</span>
