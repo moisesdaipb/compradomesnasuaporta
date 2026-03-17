@@ -1676,6 +1676,7 @@ const App: React.FC = () => {
             userRole={session?.role || 'cliente'}
             userId={session?.id || ''}
             onPayInstallment={handlePayInstallment}
+            onUpdateInstallments={handleUpdateInstallments}
             setView={setView}
           />
         );
