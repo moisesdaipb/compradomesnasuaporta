@@ -1144,14 +1144,14 @@ const App: React.FC = () => {
       setLoadingStatus('Salvando alterações...');
 
       const mappedSaleData = {
-        customer_id: saleData.customerId,
-        customer_name: saleData.customerName || '',
+        customerId: saleData.customerId,
+        customerName: saleData.customerName || '',
         total: saleData.total,
-        payment_method: saleData.paymentMethod || PaymentMethod.TERM,
+        paymentMethod: saleData.paymentMethod || PaymentMethod.TERM,
         status: saleData.status,
         notes: saleData.notes || null,
         channel: saleData.channel || 'presencial',
-        installments_count: installments.length
+        installmentsCount: installments.length
       };
 
       const mappedItems = items.map(i => ({
@@ -1199,14 +1199,14 @@ const App: React.FC = () => {
       if (!sale) throw new Error('Venda não encontrada');
 
       const saleData = {
-        customer_id: sale.customerId,
-        customer_name: sale.customerName,
+        customerId: sale.customerId,
+        customerName: sale.customerName,
         total: sale.total,
-        payment_method: sale.paymentMethod || PaymentMethod.TERM,
+        paymentMethod: sale.paymentMethod || PaymentMethod.TERM,
         status: sale.status,
         notes: sale.notes || null,
         channel: sale.channel || 'presencial',
-        installments_count: installments.length
+        installmentsCount: installments.length
       };
 
       // The RPC expects snake_case for bulk operations
