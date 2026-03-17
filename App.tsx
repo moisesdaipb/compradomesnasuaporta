@@ -1164,22 +1164,23 @@ const App: React.FC = () => {
       if (!sale) throw new Error('Venda não encontrada');
 
       const saleData = {
-        customer_id: sale.customerId,
+        customerId: sale.customerId,
         total: sale.total,
-        payment_method: sale.paymentMethod,
+        paymentMethod: sale.paymentMethod,
         status: sale.status,
-        notes: sale.notes
+        notes: sale.notes,
+        channel: sale.channel
       };
 
-      // Items must be in snake_case for the RPC
-      const itemsToSave = (sale.items || []).map((i: any) => ({
-        basket_model_id: i.basketModelId,
-        basket_name: i.basketName,
+      // The RPC expects camelCase keys matching the frontend objects
+      const itemsToUpdate = (sale.items || []).map((i: any) => ({
+        basketModelId: i.basketModelId,
+        basketName: i.basketName,
         quantity: i.quantity,
-        unit_price: i.unitPrice
+        unitPrice: i.unitPrice
       }));
 
-      await updateCompleteSale(saleId, saleData, itemsToSave, installments);
+      await updateCompleteSale(saleId, saleData, itemsToUpdate, installments);
       triggerRefresh(100);
     } catch (error: any) {
       console.error('[App] handleUpdateInstallments error:', error);

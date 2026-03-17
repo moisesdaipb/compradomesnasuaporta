@@ -20,6 +20,7 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
     onSave,
 }) => {
     const [receivedAmount, setReceivedAmount] = useState<string>(installment.amount.toString());
+    const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(paymentMethod || installment.paymentMethod || PaymentMethod.CASH);
     const [isSaving, setIsSaving] = useState(false);
 
     // Filter installments that are NOT paid and belong to this sale
@@ -180,10 +181,9 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
                         amount: i.amount,
                         due_date: new Date(i.dueDate).toISOString().split('T')[0],
                         status: isBeingPaid ? InstallmentStatus.PAID : i.status,
-                        // If it's being paid now, we set the date and a default method 
-                        // (usually Dinheiro if not specified)
+                        // If it's being paid now, we set the date and the selected method
                         paid_at: isBeingPaid ? new Date().toISOString() : undefined,
-                        payment_method: isBeingPaid ? (paymentMethod || installment.paymentMethod || PaymentMethod.CASH) : i.paymentMethod
+                        payment_method: isBeingPaid ? selectedMethod : i.paymentMethod
                     };
                 })
             ];
@@ -229,6 +229,31 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
                         <p className="text-[10px] font-bold text-slate-400 mt-3 text-center uppercase tracking-widest">
                             Valor original desta parcela: <span className="text-slate-600 dark:text-slate-200">R$ {installment.amount.toFixed(2)}</span>
                         </p>
+                    </div>
+
+                    {/* Payment Method Selector */}
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Meio de Pagamento</label>
+                        <div className="grid grid-cols-3 gap-3">
+                            {[
+                                { id: PaymentMethod.PIX, icon: 'qr_code_2', label: 'PIX' },
+                                { id: PaymentMethod.CARD, icon: 'credit_card', label: 'Cartão' },
+                                { id: PaymentMethod.CASH, icon: 'payments', label: 'Dinheiro' }
+                            ].map((method) => (
+                                <button
+                                    key={method.id}
+                                    onClick={() => setSelectedMethod(method.id as PaymentMethod)}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all gap-1 ${
+                                        selectedMethod === method.id
+                                        ? 'bg-primary/10 border-primary text-primary shadow-lg shadow-primary/10'
+                                        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-800 text-slate-400 hover:border-slate-200'
+                                    }`}
+                                >
+                                    <span className="material-symbols-outlined">{method.icon}</span>
+                                    <span className="text-[9px] font-black uppercase">{method.label}</span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Redistribution Area */}
