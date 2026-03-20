@@ -1151,7 +1151,7 @@ const App: React.FC = () => {
         total: saleData.total,
         paymentMethod: saleData.paymentMethod || PaymentMethod.TERM,
         payment_method: saleData.paymentMethod || PaymentMethod.TERM,
-        status: saleData.status,
+        status: saleData.status || OrderStatus.DELIVERED, // Fallback to Delivered for older edits
         notes: saleData.notes || null,
         channel: saleData.channel || 'presencial',
         installmentsCount: installments.length,

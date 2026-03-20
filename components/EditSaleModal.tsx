@@ -115,6 +115,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({
             customerName: customers.find(c => c.id === customerId)?.name || sale.customerName,
             total: totalVal,
             paymentMethod,
+            status: sale.status, // Preserve current status
             notes,
         };
 
