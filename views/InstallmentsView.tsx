@@ -7,8 +7,10 @@ interface InstallmentsViewProps {
     sales: Sale[];
     userRole: string;
     userId: string;
+    sellerId: string;
     onPayInstallment: (id: string, paymentMethod: PaymentMethod) => void;
     onUpdateInstallments: (saleId: string, updatedInstallments: any[]) => Promise<void>;
+    onRefresh?: () => void;
     setView: (v: ViewState) => void;
 }
 
@@ -17,8 +19,10 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
     sales,
     userRole,
     userId,
+    sellerId,
     onPayInstallment,
     onUpdateInstallments,
+    onRefresh,
     setView,
 }) => {
     const [filter, setFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('pending');
@@ -29,6 +33,7 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
 
     // Update overdue status
     const today = Date.now();
+    
     const processedInstallments = installments
         .filter(i => {
             const sale = sales.find(s => s.id === i.saleId);
@@ -55,10 +60,6 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                 (i.customerName || '').toLowerCase().includes(searchQuery.toLowerCase())
         )
         .sort((a, b) => a.dueDate - b.dueDate);
-
-    console.log('[DEBUG] InstallmentsView received raw installments:', installments.filter(i => i.customerName?.includes('cliente 4') || i.customerName?.includes('Cliente 4')));
-    console.log('[DEBUG] InstallmentsView filtered (processed):', processedInstallments.filter(i => i.customerName?.includes('cliente 4') || i.customerName?.includes('Cliente 4')));
-    console.log('[DEBUG] InstallmentsView final filtered:', filteredInstallments.filter(i => i.customerName?.includes('cliente 4') || i.customerName?.includes('Cliente 4')));
 
     const pendingCount = processedInstallments.filter(i => i.status === InstallmentStatus.PENDING).length;
     const overdueCount = processedInstallments.filter(i => i.status === InstallmentStatus.OVERDUE).length;
@@ -90,10 +91,19 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                     >
                         <span className="material-symbols-outlined">arrow_back</span>
                     </button>
-                    <div>
+                    <div className="flex-1">
                         <h3 className="text-lg font-bold leading-tight">Parcelado</h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400">Contas Parceladas</p>
                     </div>
+                    {onRefresh && (
+                        <button
+                            onClick={() => onRefresh()}
+                            className="size-10 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 active:scale-95 transition-all text-primary"
+                            title="Atualizar Dados"
+                        >
+                            <span className="material-symbols-outlined">refresh</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -300,6 +310,7 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                     installment={partialPaymentInst}
                     allInstallments={installments}
                     paymentMethod={selectedMethod}
+                    sellerId={sellerId}
                     onClose={() => setPartialPaymentInst(null)}
                     onSave={onUpdateInstallments}
                 />

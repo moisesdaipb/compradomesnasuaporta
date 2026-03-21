@@ -1229,6 +1229,10 @@ const App: React.FC = () => {
         status: sale.status,
         notes: sale.notes || null,
         channel: sale.channel || 'presencial',
+        sellerId: sale.sellerId,
+        seller_id: sale.sellerId,
+        sellerName: sale.sellerName,
+        seller_name: sale.sellerName,
         installmentsCount: installments.length,
         installments_count: installments.length
       };
@@ -1768,8 +1772,10 @@ const App: React.FC = () => {
             sales={appData.sales}
             userRole={session?.role || 'cliente'}
             userId={session?.id || ''}
+            sellerId={session?.id || ''}
             onPayInstallment={handlePayInstallment}
             onUpdateInstallments={handleUpdateInstallments}
+            onRefresh={() => triggerRefresh(100)}
             setView={setView}
           />
         );
@@ -1834,8 +1840,10 @@ const App: React.FC = () => {
             sales={appData.sales}
             userRole={session?.role || 'cliente'}
             userId={session?.id || ''}
+            sellerId={session?.id || ''}
             onPayInstallment={handlePayInstallment}
             onUpdateInstallments={handleUpdateInstallments}
+            onRefresh={() => triggerRefresh(100)}
             setView={setView}
           />
         );

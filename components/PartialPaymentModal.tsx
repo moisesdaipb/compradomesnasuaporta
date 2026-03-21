@@ -7,6 +7,7 @@ interface PartialPaymentModalProps {
     installment: Installment;
     allInstallments: Installment[];
     paymentMethod?: PaymentMethod | null;
+    sellerId: string;
     onClose: () => void;
     onSave: (saleId: string, updatedInstallments: any[]) => Promise<void>;
 }
@@ -16,6 +17,7 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
     installment,
     allInstallments,
     paymentMethod,
+    sellerId,
     onClose,
     onSave,
 }) => {
@@ -192,6 +194,7 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
                         dueDate: i.dueDate,
                         status: finalStatus,
                         paidAt: isBeingPaid ? Date.now() : (i.status === InstallmentStatus.PAID ? i.paidAt : null),
+                        receivedBy: isBeingPaid ? sellerId : (i.status === InstallmentStatus.PAID ? i.receivedBy : null),
                         paymentMethod: isBeingPaid ? selectedMethod : (i.status === InstallmentStatus.PAID ? i.paymentMethod : null)
                     };
                 })
