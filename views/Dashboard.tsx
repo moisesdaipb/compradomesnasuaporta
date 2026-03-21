@@ -252,15 +252,15 @@ const Dashboard: React.FC<DashboardProps> = ({
       .sort((a, b) => b.unclosedTotal - a.unclosedTotal);
 
     return {
-      totalSoldAll: balancedTotal,
+      totalSoldAll,
       recebidoCentral,
-      saldoAReceber,
+      saldoAReceber: totalSoldAll - recebidoCentral,
       closedAmount,
-      totalUnclosedCash: dinheiroEmMaos, // Represents both unclosed sales and unclosed paid installments
+      totalUnclosedCash: dinheiroEmMaos,
       totalInstallmentsPending: pendingInstallmentsAmount,
       totalOverdue,
       countOverdue,
-      receivedPercent: balancedTotal > 0 ? Math.min(100, Math.round((recebidoCentral / balancedTotal) * 100)) : 0,
+      receivedPercent: totalSoldAll > 0 ? Math.min(100, Math.round((recebidoCentral / totalSoldAll) * 100)) : 0,
       sellerAccountability,
     };
   }, [sales, dailyClosings, installments, userRole]);
