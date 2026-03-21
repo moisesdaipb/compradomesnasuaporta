@@ -248,6 +248,10 @@ const App: React.FC = () => {
 
       const [baskets, customers, team, sales, deliveries, closings, stockEntries, stockSummary, allUsers, installments, goals, settings, loginLogs] = results;
       console.log(`[App] Data fetched in ${Date.now() - fetchStart}ms`);
+      
+      // DEBUG: Track Elisabete installments
+      const elisabeteInsts = (installments as any[]).filter((i: any) => (i.customerName || '').toLowerCase().includes('elisabe'));
+      console.log('[DEBUG-FETCH] Elisabete installments after fetch:', elisabeteInsts.length, elisabeteInsts.map((i: any) => ({ id: i.id, number: i.number, status: i.status })));
 
       setAppData(prev => {
         const stockMap = new Map<string, number>();
