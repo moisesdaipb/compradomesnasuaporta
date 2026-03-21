@@ -366,14 +366,35 @@ export const fetchDeliveries = async (): Promise<Delivery[]> => {
 };
 
 export const fetchInstallments = async (): Promise<Installment[]> => {
-  const { data, error } = await supabase
-    .from('installments')
-    .select('*')
-    .limit(10000)
-    .order('due_date', { ascending: true });
+  // Supabase PostgREST has a default max_rows of 1000.
+  // We need to paginate to fetch all installments.
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let from = 0;
+  let hasMore = true;
 
-  if (error) throw error;
-  return (data || []).map(i => ({
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('installments')
+      .select('*')
+      .order('due_date', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    
+    const rows = data || [];
+    allData = allData.concat(rows);
+    
+    if (rows.length < PAGE_SIZE) {
+      hasMore = false;
+    } else {
+      from += PAGE_SIZE;
+    }
+  }
+
+  console.log(`[store] fetchInstallments: fetched ${allData.length} total installments`);
+
+  return allData.map(i => ({
     id: i.id,
     saleId: i.sale_id,
     customerId: i.customer_id,

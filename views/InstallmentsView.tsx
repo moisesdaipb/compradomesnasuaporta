@@ -34,13 +34,6 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
     // Update overdue status
     const today = Date.now();
     
-    // DEBUG: counts per stage
-    const debugRawElisabete = installments.filter(i => (i.customerName || '').toLowerCase().includes('elisabe'));
-    const debugSalesForElisabete = debugRawElisabete.map(i => {
-        const sale = sales.find(s => s.id === i.saleId);
-        return { instId: i.id, instNum: i.number, instStatus: i.status, saleFound: !!sale, saleStatus: sale?.status, sellerId: sale?.sellerId };
-    });
-
     const processedInstallments = installments
         .filter(i => {
             const sale = sales.find(s => s.id === i.saleId);
@@ -68,9 +61,6 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
         )
         .sort((a, b) => a.dueDate - b.dueDate);
 
-    const debugProcessedElisabete = processedInstallments.filter(i => (i.customerName || '').toLowerCase().includes('elisabe'));
-    const debugFilteredElisabete = filteredInstallments.filter(i => (i.customerName || '').toLowerCase().includes('elisabe'));
-
     const pendingCount = processedInstallments.filter(i => i.status === InstallmentStatus.PENDING).length;
     const overdueCount = processedInstallments.filter(i => i.status === InstallmentStatus.OVERDUE).length;
     const totalPending = processedInstallments
@@ -92,24 +82,6 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
 
     return (
         <div className="flex flex-col h-full animate-in fade-in duration-300">
-            {/* DEBUG BANNER - REMOVER DEPOIS */}
-            {searchQuery.toLowerCase().includes('elisab') && (
-                <div className="mx-4 mt-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800 text-xs">
-                    <p className="font-bold text-red-600 mb-1">🔍 DEBUG Elisabete:</p>
-                    <p>Raw (props): <b>{debugRawElisabete.length}</b> parcelas</p>
-                    <p>Processed (após filter sale): <b>{debugProcessedElisabete.length}</b></p>
-                    <p>Filtered (após filter status + busca): <b>{debugFilteredElisabete.length}</b></p>
-                    <p>Total installments (props): <b>{installments.length}</b></p>
-                    <p>Total sales (props): <b>{sales.length}</b></p>
-                    <p>User role: <b>{userRole}</b> | Filter: <b>{filter}</b></p>
-                    {debugSalesForElisabete.map((d, i) => (
-                        <p key={i} className="text-[10px] text-slate-500">
-                            Parcela #{d.instNum}: status={d.instStatus} | sale found={String(d.saleFound)} | sale status={d.saleStatus}
-                        </p>
-                    ))}
-                </div>
-            )}
-
             {/* Header */}
             <div className="px-4 py-2">
                 <div className="flex items-center gap-3">
