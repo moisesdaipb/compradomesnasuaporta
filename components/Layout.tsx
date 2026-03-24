@@ -13,42 +13,46 @@ interface LayoutProps {
 }
 
 // Configuração de menu por role
-const getMenuItems = (role: UserRole): { icon: string; label: string; view: ViewState }[] => {
+const getMenuItems = (role: UserRole): { icon: string; label: string; view: ViewState; isBottom?: boolean }[] => {
   switch (role) {
     case 'gerente':
       return [
         { icon: 'dashboard', label: 'Dashboard', view: 'dashboard' },
-        { icon: 'query_stats', label: 'Insights', view: 'analytics' },
-        { icon: 'inventory_2', label: 'Estoque', view: 'stock' },
-        { icon: 'add_box', label: 'Entrada', view: 'stock-entry' },
-        { icon: 'category', label: 'Modelos', view: 'basket-models' },
+        { icon: 'rule', label: 'Auditoria Geral', view: 'manager-audit' },
         { icon: 'person_search', label: 'Clientes', view: 'manager-customers' },
-        { icon: 'group', label: 'Equipe', view: 'team' },
-        {icon: 'local_shipping', label: 'Entregas', view: 'deliveries'},
-        {icon: 'receipt_long', label: 'Fechar Caixa', view: 'closing-approval'},
-        { icon: 'payments', label: 'Parcelado', view: 'receivables' },
-        { icon: 'list_alt', label: 'Vendas', view: 'sales-list' },
-        { icon: 'ads_click', label: 'Metas', view: 'settings' },
         { icon: 'settings', label: 'Configurações', view: 'app-config' },
-        { icon: 'account_circle', label: 'Perfil', view: 'profile' },
+        { icon: 'add_box', label: 'Entrada', view: 'stock-entry' },
+        { icon: 'local_shipping', label: 'Entregas', view: 'deliveries'},
+        { icon: 'group', label: 'Equipe', view: 'team' },
+        { icon: 'inventory_2', label: 'Estoque', view: 'stock' },
+        { icon: 'receipt_long', label: 'Fechar Caixa', view: 'closing-approval'},
+        { icon: 'query_stats', label: 'Insights', view: 'analytics' },
+        { icon: 'ads_click', label: 'Metas', view: 'settings' },
+        { icon: 'category', label: 'Modelos', view: 'basket-models' },
+        { icon: 'calendar_month', label: 'Gestão de Cobrança', view: 'receivables' },
+        { icon: 'list_alt', label: 'Vendas', view: 'sales-list' },
+        { icon: 'settings', label: 'Configurações', view: 'app-config', isBottom: true },
+        { icon: 'account_circle', label: 'Perfil', view: 'profile', isBottom: true },
       ];
     case 'vendedor':
       return [
         { icon: 'dashboard', label: 'Início', view: 'dashboard' },
-        { icon: 'point_of_sale', label: 'Vender', view: 'presential-sale' },
-        { icon: 'analytics', label: 'Vendas', view: 'sales-list' },
-        { icon: 'local_shipping', label: 'Entregas', view: 'deliveries' },
         { icon: 'person_add', label: 'Clientes', view: 'customer-register' },
-        { icon: 'credit_score', label: 'Parcelado', view: 'installments' },
-        { icon: 'receipt_long', label: 'Fechar Caixa', view: 'daily-closing' },
+        { icon: 'local_shipping', label: 'Entregas', view: 'deliveries' },
         { icon: 'inventory_2', label: 'Estoque', view: 'stock' },
-        { icon: 'account_circle', label: 'Perfil', view: 'profile' },
+        { icon: 'receipt_long', label: 'Fechar Caixa', view: 'daily-closing' },
+        { icon: 'account_balance_wallet', label: 'Meu Extrato', view: 'seller-audit' },
+        { icon: 'credit_score', label: 'Parcelado', view: 'installments' },
+        { icon: 'calendar_month', label: 'Gestão de Cobrança', view: 'receivables' },
+        { icon: 'analytics', label: 'Vendas', view: 'sales-list' },
+        { icon: 'point_of_sale', label: 'Vender', view: 'presential-sale' },
+        { icon: 'account_circle', label: 'Perfil', view: 'profile', isBottom: true },
       ];
     case 'entregador':
       return [
         { icon: 'dashboard', label: 'Início', view: 'dashboard' },
-        {icon: 'local_shipping', label: 'Entregas', view: 'deliveries'},
-        {icon: 'account_circle', label: 'Perfil', view: 'profile'},
+        { icon: 'local_shipping', label: 'Entregas', view: 'deliveries' },
+        { icon: 'account_circle', label: 'Perfil', view: 'profile', isBottom: true },
       ];
     case 'cliente':
       return [
@@ -56,6 +60,8 @@ const getMenuItems = (role: UserRole): { icon: string; label: string; view: View
         { icon: 'grid_view', label: 'Categorias', view: 'customer-store' },
         { icon: 'receipt', label: 'Pedidos', view: 'customer-orders' },
         { icon: 'shopping_cart', label: 'Carrinho', view: 'customer-cart' },
+        { icon: 'settings', label: 'Configuração', view: 'settings', isBottom: true },
+        { icon: 'account_circle', label: 'Perfil', view: 'customer-profile', isBottom: true },
       ];
     default:
       return [];
@@ -108,7 +114,7 @@ const Layout: React.FC<LayoutProps> = ({
   const appName = settings?.appName || 'Cesta Básica na sua Casa';
 
   return (
-    <div className={`flex flex-col h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white ${currentView === 'analytics' ? 'max-w-[1280px]' : 'max-w-md'} mx-auto relative overflow-hidden shadow-2xl transition-all duration-500`}>
+    <div className={`flex flex-col h-screen bg-[#E2E8F0] dark:bg-slate-950 text-slate-900 dark:text-white ${currentView === 'analytics' ? 'max-w-[1280px]' : 'max-w-md'} mx-auto relative overflow-hidden shadow-2xl transition-all duration-500`}>
       {/* Top Header */}
       <header className="flex-shrink-0 px-4 pt-4 pb-2 space-y-4">
         {/* Row 1: App Name (Clickable for Home) - Hidden on BI View for Space */}
@@ -280,7 +286,7 @@ const Layout: React.FC<LayoutProps> = ({
             {/* Sidebar Menu */}
             <div className="flex-1 overflow-y-auto p-4 space-y-1 no-scrollbar">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 mb-2">Navegação</p>
-              {menuItems.map((item) => (
+              {menuItems.filter(item => !item.isBottom).map((item) => (
                 <button
                   key={item.label}
                   onClick={() => {
@@ -296,6 +302,26 @@ const Layout: React.FC<LayoutProps> = ({
                   <span className="font-bold text-sm tracking-tight">{item.label}</span>
                 </button>
               ))}
+
+              <div className="pt-4 pb-2">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 mb-2">Configurações Gerais</p>
+                 {menuItems.filter(item => item.isBottom).map((item) => (
+                   <button
+                     key={item.label}
+                     onClick={() => {
+                       setView(item.view);
+                       setIsSidebarOpen(false);
+                     }}
+                     className={`flex items-center gap-4 w-full p-4 rounded-2xl transition-all ${currentView === item.view
+                       ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20'
+                       : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                       }`}
+                   >
+                     <span className="material-symbols-outlined">{item.icon}</span>
+                     <span className="font-bold text-sm tracking-tight">{item.label}</span>
+                   </button>
+                 ))}
+              </div>
             </div>
 
             {/* Sidebar Footer */}

@@ -98,8 +98,11 @@ import CustomerProfileView from './views/CustomerProfileView';
 import UsersManagementView from './views/UsersManagementView';
 import SettingsView from './views/SettingsView';
 import AppConfigView from './views/AppConfigView';
+import ReceivablesView from './views/ReceivablesView';
 import AnalyticsView from './views/AnalyticsView';
 import ManagerCustomersView from './views/ManagerCustomersView';
+import SellerAuditView from './views/SellerAuditView';
+import ManagerAuditView from './views/ManagerAuditView';
 
 interface AppState extends AppData {
   allUsers: any[];
@@ -143,6 +146,7 @@ const App: React.FC = () => {
 
   // View State
   const [view, setView] = useState<ViewState>('dashboard');
+  const [selectedAuditSellerId, setSelectedAuditSellerId] = useState<string | null>(null);
 
   console.log('[App] State:', { isLoaded, sessionEmail: session?.email, view });
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register' | 'forgot-password' | 'reset-password'>('login');
@@ -1621,6 +1625,7 @@ const App: React.FC = () => {
             userRole={session.role}
             userId={session.id}
             setView={setView}
+            onSelectAuditSeller={setSelectedAuditSellerId}
           />
         );
 
@@ -1633,6 +1638,7 @@ const App: React.FC = () => {
             onToggleStatus={handleToggleTeamStatus}
             onDeleteMember={handleDeleteTeamMember}
             setView={setView}
+            onSelectAuditSeller={setSelectedAuditSellerId}
           />
         );
 
@@ -1744,7 +1750,10 @@ const App: React.FC = () => {
             customers={session?.role === 'gerente'
               ? appData.customers
               : appData.customers.filter(c => c.createdBy === session?.id)}
+            sales={appData.sales}
+            installments={appData.installments}
             onAddCustomer={handleAddCustomer}
+            onUpdateCustomer={handleUpdateCustomer}
             onSelectCustomer={setSelectedCustomer}
             setView={setView}
           />
@@ -1770,6 +1779,7 @@ const App: React.FC = () => {
           <InstallmentsView
             installments={appData.installments}
             sales={appData.sales}
+            customers={appData.customers}
             userRole={session?.role || 'cliente'}
             userId={session?.id || ''}
             sellerId={session?.id || ''}
@@ -1805,6 +1815,7 @@ const App: React.FC = () => {
             onApproveClosing={handleApproveClosing}
             onRejectClosing={handleRejectClosing}
             setView={setView}
+            onSelectAuditSeller={setSelectedAuditSellerId}
           />
         );
 
@@ -1835,14 +1846,12 @@ const App: React.FC = () => {
 
       case 'receivables':
         return (
-          <InstallmentsView
+          <ReceivablesView
             installments={appData.installments}
             sales={appData.sales}
+            customers={appData.customers}
             userRole={session?.role || 'cliente'}
             userId={session?.id || ''}
-            sellerId={session?.id || ''}
-            onPayInstallment={handlePayInstallment}
-            onUpdateInstallments={handleUpdateInstallments}
             onRefresh={() => triggerRefresh(100)}
             setView={setView}
           />
@@ -1875,6 +1884,8 @@ const App: React.FC = () => {
         return (
           <ManagerCustomersView
             customers={appData.customers}
+            sales={appData.sales}
+            installments={appData.installments}
             team={appData.team}
             setView={setView}
             onUpdateCustomer={handleUpdateCustomer}
@@ -1928,6 +1939,32 @@ const App: React.FC = () => {
             settings={appData.settings}
             onUpdateSettings={handleUpdateSettings}
             setView={setView}
+          />
+        );
+      case 'seller-audit':
+        return (
+          <SellerAuditView
+            sellerId={session.role === 'vendedor' ? session.id : (selectedAuditSellerId || session.id)}
+            sales={appData.sales}
+            installments={appData.installments}
+            dailyClosings={appData.dailyClosings}
+            team={appData.team}
+            session={session}
+            onBack={() => {
+              setSelectedAuditSellerId(null);
+              setView(session.role === 'vendedor' ? 'dashboard' : 'closing-approval');
+            }}
+          />
+        );
+
+      case 'manager-audit':
+        return (
+          <ManagerAuditView
+            sales={appData.sales}
+            installments={appData.installments}
+            dailyClosings={appData.dailyClosings}
+            team={appData.team}
+            onBack={() => setView('dashboard')}
           />
         );
 

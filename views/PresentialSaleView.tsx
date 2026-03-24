@@ -53,6 +53,14 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
     const handleConfirm = () => {
         if (!selectedCustomer || !model) return;
 
+        if (paymentMethod === PaymentMethod.TERM) {
+            const unfilled = installmentDates.slice(0, installmentsCount).some(d => d === 0);
+            if (unfilled) {
+                alert('Por favor, selecione as datas de vencimento de todas as parcelas.');
+                return;
+            }
+        }
+
         const items: SaleItem[] = [{
             basketModelId: model.id,
             basketName: model.name,
@@ -83,9 +91,8 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
         const dates: number[] = [];
         const today = new Date();
         for (let i = 1; i <= count; i++) {
-            const date = new Date(today);
-            date.setDate(date.getDate() + i * 30);
-            dates.push(date.getTime());
+            // We set to 0 to represent "blank" as requested by user
+            dates.push(0);
         }
         setInstallmentDates(dates);
 
@@ -125,9 +132,9 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
     }
 
     return (
-        <div className="flex flex-col h-full animate-in fade-in duration-300">
+        <div className="flex flex-col h-full animate-in fade-in duration-300 overflow-y-auto no-scrollbar pb-64">
             {/* Header */}
-            <div className="px-4 py-2">
+            <div className="px-4 py-2 mt-2">
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setView('dashboard')}
@@ -192,7 +199,7 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
                 </div>
             )}
 
-            <div className="flex-1 p-4 pb-52 overflow-y-auto">
+            <div className="p-4">
                 {step === 'product' && (
                     <>
                         {/* Product Selection */}
@@ -382,13 +389,13 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
                                         <span className="text-sm">Parcela {idx + 1}</span>
                                         <input
                                             type="date"
-                                            value={new Date(date).toISOString().split('T')[0]}
+                                            value={date > 0 ? new Date(date).toISOString().split('T')[0] : ''}
                                             onChange={(e) => {
                                                 const newDates = [...installmentDates];
                                                 newDates[idx] = new Date(e.target.value).getTime();
                                                 setInstallmentDates(newDates);
                                             }}
-                                            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm"
+                                            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm focus:ring-2 focus:ring-primary outline-none"
                                         />
                                     </div>
                                 ))}

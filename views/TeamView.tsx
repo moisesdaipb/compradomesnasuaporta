@@ -9,9 +9,10 @@ interface TeamViewProps {
     onToggleStatus: (id: string) => void;
     onDeleteMember: (id: string) => void;
     setView: (v: ViewState) => void;
+    onSelectAuditSeller?: (sellerId: string) => void;
 }
 
-const TeamView: React.FC<TeamViewProps> = ({ team, onAddMember, onUpdateMember, onToggleStatus, onDeleteMember, setView }) => {
+const TeamView: React.FC<TeamViewProps> = ({ team, onAddMember, onUpdateMember, onToggleStatus, onDeleteMember, setView, onSelectAuditSeller }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
@@ -263,6 +264,20 @@ https://cesta-basica-app.vercel.app/register?cpf=${member.cpf.replace(/\D/g, '')
                         </div>
 
                         <div className="grid grid-cols-1 gap-2">
+                            {selectedMember.role === 'vendedor' && onSelectAuditSeller && (
+                                <button
+                                    onClick={() => {
+                                        onSelectAuditSeller(selectedMember.id);
+                                        setView('seller-audit');
+                                        setSelectedMember(null);
+                                    }}
+                                    className="w-full h-12 bg-blue-50 text-blue-600 dark:bg-blue-900/20 rounded-xl flex items-center gap-3 px-5 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                                >
+                                    <span className="material-symbols-outlined text-xl">receipt_long</span>
+                                    Extrato Detalhado
+                                </button>
+                            )}
+
                             {selectedMember.status === 'pendente' && (
                                 <button
                                     onClick={() => handleShareInvite(selectedMember)}

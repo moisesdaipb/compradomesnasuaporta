@@ -32,6 +32,7 @@ interface DashboardProps {
   userRole: UserRole;
   userId: string;
   setView: (v: ViewState) => void;
+  onSelectAuditSeller?: (sellerId: string) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -46,6 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   userRole,
   userId,
   setView,
+  onSelectAuditSeller,
 }) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -232,8 +234,14 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     // Per-seller accountability
     const sellerMap = new Map<string, { name: string; unclosedTotal: number; unclosedCount: number }>();
+    const saleInfoMap = new Map<string, { sellerId?: string, sellerName?: string }>(
+      activeSalesInternal.map(s => [s.id, { sellerId: s.sellerId, sellerName: s.sellerName }])
+    );
+
+    // 1. Unclosed Cash Sales
     activeSalesInternal.forEach(sale => {
       if (!sale.sellerId || sale.paymentMethod === PaymentMethod.TERM || closedSaleIds.has(sale.id)) return;
+      
       const existing = sellerMap.get(sale.sellerId);
       if (existing) {
         existing.unclosedTotal += sale.total;
@@ -244,6 +252,26 @@ const Dashboard: React.FC<DashboardProps> = ({
           unclosedTotal: sale.total,
           unclosedCount: 1,
         });
+      }
+    });
+
+    // 2. Unclosed Paid Installments
+    installments.forEach(i => {
+      if (i.status === InstallmentStatus.PAID && activeSaleIds.has(i.saleId) && !closedInstIds.has(i.id)) {
+        const saleInfo = saleInfoMap.get(i.saleId);
+        if (!saleInfo || !saleInfo.sellerId) return;
+
+        const existing = sellerMap.get(saleInfo.sellerId);
+        if (existing) {
+          existing.unclosedTotal += i.amount;
+          existing.unclosedCount += 1;
+        } else {
+          sellerMap.set(saleInfo.sellerId, {
+            name: saleInfo.sellerName || 'Vendedor',
+            unclosedTotal: i.amount,
+            unclosedCount: 1,
+          });
+        }
       }
     });
 
@@ -517,6 +545,13 @@ const Dashboard: React.FC<DashboardProps> = ({
               <span className="material-symbols-outlined text-3xl text-primary">credit_score</span>
               <span className="font-bold text-sm">Parcelas</span>
             </button>
+            <button
+              onClick={() => setView('receivables')}
+              className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-3xl text-warning">calendar_month</span>
+              <span className="font-bold text-sm">Gestão de Cobrança</span>
+            </button>
           </div>
 
           {/* New: Seller Deliveries summary */}
@@ -755,9 +790,23 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </p>
                       </div>
                     </div>
-                    <p className="font-black text-sm text-orange-600">
-                      {formatCurrency(seller.unclosedTotal)}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className="font-black text-sm text-orange-600">
+                        {formatCurrency(seller.unclosedTotal)}
+                      </p>
+                      <button
+                        onClick={() => {
+                           if (onSelectAuditSeller) {
+                             onSelectAuditSeller(seller.id);
+                             setView('seller-audit');
+                           }
+                        }}
+                        className="size-8 rounded-full bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
+                        title="Ver Extrato"
+                      >
+                        <span className="material-symbols-outlined text-lg">receipt_long</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

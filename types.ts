@@ -117,6 +117,13 @@ export interface StockEntry {
   notes?: string;
 }
 
+// Etiqueta de Cliente
+export interface CustomerTag {
+  type: 'bom_pagador' | 'mau_pagador' | 'recorrente' | 'outros';
+  customLabel?: string;
+  customIcon?: string;
+}
+
 // Cliente
 export interface Customer {
   id: string;
@@ -132,6 +139,8 @@ export interface Customer {
   zipCode?: string;
   state?: string;
   complement?: string;
+  // Etiquetas
+  tags?: CustomerTag[];
   // Campos calculados
   createdAt: number;
   createdBy: string;
@@ -288,6 +297,7 @@ export type ViewState =
   | 'stock-entry'
   | 'basket-models'
   | 'team'
+  | 'manager-audit'
   | 'deliveries'
   | 'gps-tracking'
   | 'closing-approval'
@@ -296,6 +306,7 @@ export type ViewState =
   | 'users-management'
   | 'analytics'
   | 'manager-customers'
+  | 'seller-audit'
   // Vendedor
   | 'presential-sale'
   | 'customer-register'

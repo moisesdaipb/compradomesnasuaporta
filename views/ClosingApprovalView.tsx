@@ -10,6 +10,7 @@ interface ClosingApprovalViewProps {
     onApproveClosing: (id: string) => void;
     onRejectClosing: (id: string, reason: string) => void;
     setView: (v: ViewState) => void;
+    onSelectAuditSeller?: (sellerId: string) => void;
 }
 
 type DateFilterType = 'today' | 'week' | 'month' | 'custom' | 'all';
@@ -23,6 +24,7 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
     onApproveClosing,
     onRejectClosing,
     setView,
+    onSelectAuditSeller,
 }) => {
     const [filter, setFilter] = useState<'pending' | 'approved' | 'rejected' | 'not_sent' | 'all'>('pending');
     const [dateFilterType, setDateFilterType] = useState<DateFilterType>('today');
@@ -33,6 +35,10 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
 
     const [selectedClosing, setSelectedClosing] = useState<DailyClosing | null>(null);
     const [rejectReason, setRejectReason] = useState('');
+    const [sellerSearch, setSellerSearch] = useState('');
+
+    const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const sellerMatches = (name: string) => !sellerSearch || normalize(name).includes(normalize(sellerSearch));
 
     // --- Date Logic ---
     const getDateRange = () => {
@@ -117,28 +123,57 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
     // 2. Metrics Calculation (Based on Date Range)
     const totalSold = useMemo(() => sales
         ? sales
-            .filter(s => s.status !== OrderStatus.CANCELLED && isDateInRange(s.createdAt))
+            .filter(s => s.status !== OrderStatus.CANCELLED && isDateInRange(s.createdAt) && sellerMatches(s.sellerName || ''))
             .reduce((acc, s) => acc + s.total, 0)
-        : 0, [sales, dateFilterType, customDate]);
+        : 0, [sales, dateFilterType, customDate, sellerSearch]);
 
     const totalTermSales = useMemo(() => sales
         ? sales
-            .filter(s => s.status !== OrderStatus.CANCELLED && s.paymentMethod === PaymentMethod.TERM && isDateInRange(s.createdAt))
+            .filter(s => s.status !== OrderStatus.CANCELLED && s.paymentMethod === PaymentMethod.TERM && isDateInRange(s.createdAt) && sellerMatches(s.sellerName || ''))
             .reduce((acc, s) => acc + s.total, 0)
-        : 0, [sales, dateFilterType, customDate]);
+        : 0, [sales, dateFilterType, customDate, sellerSearch]);
 
     const totalApproved = useMemo(() => filteredClosingsByDate
-        .filter(c => c.status === ClosingStatus.APPROVED)
+        .filter(c => c.status === ClosingStatus.APPROVED && sellerMatches(c.sellerName || ''))
         .reduce((acc, c) => acc + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0),
-        [filteredClosingsByDate]);
+        [filteredClosingsByDate, sellerSearch]);
 
     const totalPending = useMemo(() => filteredClosingsByDate
-        .filter(c => c.status === ClosingStatus.PENDING)
+        .filter(c => c.status === ClosingStatus.PENDING && sellerMatches(c.sellerName || ''))
         .reduce((acc, c) => acc + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0),
-        [filteredClosingsByDate]);
+        [filteredClosingsByDate, sellerSearch]);
 
     const totalAccounted = totalApproved + totalPending;
-    const unaccounted = Math.max(0, totalSold - totalTermSales - totalAccounted);
+
+    // IDs of installments already accounted for in ANY closing (regardless of date filter)
+    // Once accounted for, they should NEVER reappear as "A Prestar Contas"
+    const closedInstIds = useMemo(() => {
+        const ids = new Set<string>();
+        dailyClosings.forEach(c => {
+            (c.installmentIds || []).forEach((id: string) => ids.add(id));
+        });
+        return ids;
+    }, [dailyClosings]);
+
+    const paidInstNotInClosings = useMemo(() => {
+        const periodSaleIds = new Set(
+            sales
+                .filter(s => s.status !== OrderStatus.CANCELLED && isDateInRange(s.createdAt))
+                .map(s => s.id)
+        );
+        return installments
+            .filter(i => 
+                i.status === 'Pago' &&
+                periodSaleIds.has(i.saleId) &&
+                !closedInstIds.has(i.id)
+            )
+            .reduce((acc, i) => acc + (i.amount || 0), 0);
+    }, [installments, sales, closedInstIds, dateFilterType, customDate]);
+
+    // unaccounted will be derived from notSentData (sum of per-seller unaccountedBalance)
+    // This is more accurate than the top-down formula because closings can include
+    // both cash sales AND installment payments, making a simple subtraction unreliable.
+    let unaccounted = 0; // Will be set after notSentData is computed
     const pendingCount = dailyClosings.filter(c => c.status === ClosingStatus.PENDING).length; // Global pending count for badge
 
     // --- "Not Sent" Logic ---
@@ -181,24 +216,32 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
 
             const total = sellerSalesInRange.reduce((acc, s) => acc + s.total, 0);
 
-            // Received: Not TERM (What needs to be accounted for)
-            const salesToAccount = sellerSalesInRange
-                .filter(s => s.paymentMethod !== PaymentMethod.TERM)
+            // Cash sales NOT in any closing (money in seller's hands)
+            // Uses ALL closings, not just date-filtered ones
+            const closedSaleIdsAll = new Set<string>();
+            dailyClosings.forEach(c => {
+                (c.salesIds || []).forEach((id: string) => closedSaleIdsAll.add(id));
+            });
+
+            const unclosedCashAmount = sellerSalesInRange
+                .filter(s => s.paymentMethod !== PaymentMethod.TERM && !closedSaleIdsAll.has(s.id))
                 .reduce((acc, s) => acc + s.total, 0);
 
-            // Installments (Future)
-            const future = sellerSalesInRange
-                .filter(s => s.paymentMethod === PaymentMethod.TERM)
-                .reduce((acc, s) => acc + s.total, 0);
+            // Paid installments from A Prazo sales NOT in any closing
+            const termSaleIds = new Set(sellerSalesInRange.filter(s => s.paymentMethod === PaymentMethod.TERM).map(s => s.id));
+            const unclosedPaidInstAmount = (installments || [])
+                .filter(i => i.status === 'Pago' && termSaleIds.has(i.saleId) && !closedInstIds.has(i.id))
+                .reduce((acc, i) => acc + (i.amount || 0), 0);
 
-            // Get Closings in Range
-            const sellerClosingsInRange = filteredClosingsByDate.filter(c => c.sellerId === sellerId);
+            const salesToAccount = unclosedCashAmount + unclosedPaidInstAmount;
 
-            const amountAccounted = sellerClosingsInRange
-                .reduce((acc, c) => acc + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0);
+            // Installments (Future) — only PENDING installments
+            const future = (installments || [])
+                .filter(i => i.status === 'Pendente' && termSaleIds.has(i.saleId))
+                .reduce((acc, i) => acc + (i.amount || 0), 0);
 
-            // Unaccounted Balance
-            const unaccountedBalance = Math.max(0, salesToAccount - amountAccounted);
+            // Unaccounted Balance = money in seller's hands not yet in a closing
+            const unaccountedBalance = salesToAccount;
 
             // Overdue (Corrected mapping)
             const overdueAmount = (installments || [])
@@ -223,11 +266,13 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
                 future,
                 overdueAmount,
                 unaccountedBalance,
-                hasClosings: sellerClosingsInRange.length > 0
+                hasClosings: filteredClosingsByDate.some(c => c.sellerId === sellerId)
             };
         }).filter(data => data.unaccountedBalance > 0.1);
     }, [team, filteredClosingsByDate, sales, installments, deliveries, dateFilterType, customDate]);
 
+    // Derive unaccounted from per-seller data (source of truth), filtered by search
+    unaccounted = notSentData.filter(d => sellerMatches(d.seller.name)).reduce((acc, d) => acc + d.unaccountedBalance, 0);
 
     const getStatusConfig = (status: ClosingStatus) => {
         switch (status) {
@@ -316,6 +361,28 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
 
             {/* Scrollable Content Container */}
             <div className="flex-1 min-h-0 overflow-y-auto">
+                {/* Search Input */}
+                <div className="px-4 mt-2 mb-3">
+                    <div className="relative">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                        <input
+                            type="text"
+                            value={sellerSearch}
+                            onChange={(e) => setSellerSearch(e.target.value)}
+                            placeholder="Buscar vendedor..."
+                            className="w-full pl-10 pr-8 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                        />
+                        {sellerSearch && (
+                            <button
+                                onClick={() => setSellerSearch('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                            >
+                                <span className="material-symbols-outlined text-lg">close</span>
+                            </button>
+                        )}
+                    </div>
+                </div>
+
                 {/* Summary Card */}
                 <div className="px-4 mt-2 mb-4">
                     <div className="bg-gradient-to-br from-[#0a4da3] to-blue-600 p-4 rounded-[24px] text-white shadow-lg shadow-blue-900/20">
@@ -342,15 +409,15 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
                                 </p>
                             </div>
                             <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
-                                <p className="text-[9px] uppercase font-bold opacity-70 mb-0.5">A Prazo</p>
-                                <p className="text-sm font-black text-blue-300">
-                                    R$ {totalTermSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                </p>
-                            </div>
-                            <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm text-right">
                                 <p className="text-[9px] uppercase font-bold opacity-70 mb-0.5">A Prestar Contas</p>
                                 <p className={`text-sm font-black ${unaccounted > 0 ? 'text-red-300' : 'text-white/60'}`}>
                                     R$ {unaccounted.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                            </div>
+                            <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm text-right">
+                                <p className="text-[9px] uppercase font-bold opacity-70 mb-0.5">A Receber</p>
+                                <p className="text-sm font-black text-blue-300">
+                                    R$ {Math.max(0, totalSold - totalApproved - unaccounted).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                 </p>
                             </div>
                         </div>
@@ -370,8 +437,8 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
                 <div className="sticky top-0 z-10 bg-gray-50/95 dark:bg-slate-900/95 backdrop-blur-sm px-4 py-2 border-b border-slate-100 dark:border-slate-800 mb-2">
                     <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                         {[
-                            { id: 'not_sent', label: `Não Enviado (${notSentData.length})` },
-                            { id: 'pending', label: `Pendentes (${filteredClosingsByDate.filter(c => c.status === ClosingStatus.PENDING).length})` },
+                            { id: 'not_sent', label: `Não Enviado (${notSentData.filter(d => sellerMatches(d.seller.name)).length})` },
+                            { id: 'pending', label: `Pendentes (${filteredClosingsByDate.filter(c => c.status === ClosingStatus.PENDING && sellerMatches(c.sellerName || '')).length})` },
                             { id: 'approved', label: 'Aprovados' },
                             { id: 'rejected', label: 'Rejeitados' },
                             { id: 'all', label: 'Todos' },
@@ -390,16 +457,18 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
                     </div>
                 </div>
 
+
+
                 {/* Closings List */}
                 <div className="px-4 pb-32 space-y-3">
                     {filter === 'not_sent' ? (
-                        notSentData.length === 0 ? (
+                        notSentData.filter(d => sellerMatches(d.seller.name)).length === 0 ? (
                             <div className="text-center py-10">
                                 <span className="material-symbols-outlined text-4xl text-green-300 mb-2">check_circle</span>
                                 <p className="text-slate-500">Todos os vendedores enviaram o fechamento no período!</p>
                             </div>
                         ) : (
-                            notSentData.map(data => (
+                            notSentData.filter(d => sellerMatches(d.seller.name)).map(data => (
                                 <div key={data.seller.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 border-l-4 border-l-red-400 shadow-sm">
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-3">
@@ -410,9 +479,23 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
                                                     <span className="material-symbols-outlined text-slate-400">person_off</span>
                                                 )}
                                             </div>
-                                            <div>
-                                                <p className="font-bold text-slate-800 dark:text-slate-200">{data.seller.name}</p>
-                                                <p className="text-xs text-red-500 font-bold uppercase tracking-wide">Fechamento Pendente</p>
+                                            <div className="flex items-center gap-2">
+                                                <div>
+                                                    <p className="font-bold text-slate-800 dark:text-slate-200">{data.seller.name}</p>
+                                                    <p className="text-xs text-red-500 font-bold uppercase tracking-wide">Fechamento Pendente</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        if (onSelectAuditSeller) {
+                                                            onSelectAuditSeller(data.seller.id);
+                                                            setView('seller-audit');
+                                                        }
+                                                    }}
+                                                    className="size-8 rounded-full bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors ml-2"
+                                                    title="Ver Extrato"
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">receipt_long</span>
+                                                </button>
                                             </div>
                                         </div>
                                         <div className="text-right">
@@ -448,13 +531,13 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
                             ))
                         )
                     ) : (
-                        filteredClosingsList.length === 0 ? (
+                        filteredClosingsList.filter(c => sellerMatches(c.sellerName || '')).length === 0 ? (
                             <div className="text-center py-10">
                                 <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">receipt_long</span>
                                 <p className="text-slate-500">Nenhum fechamento encontrado no período</p>
                             </div>
                         ) : (
-                            filteredClosingsList.map((closing) => {
+                            filteredClosingsList.filter(c => sellerMatches(c.sellerName || '')).map((closing) => {
                                 const statusConfig = getStatusConfig(closing.status);
                                 const total = closing.pixAmount + closing.cardAmount + closing.installmentAmount + closing.cashAmount;
 
@@ -466,7 +549,21 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
                                         <div className="p-4">
                                             <div className="flex items-start justify-between mb-3">
                                                 <div>
-                                                    <p className="font-bold text-slate-800 dark:text-white">{closing.sellerName}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-bold text-slate-800 dark:text-white">{closing.sellerName}</p>
+                                                        <button
+                                                            onClick={() => {
+                                                                if (onSelectAuditSeller) {
+                                                                    onSelectAuditSeller(closing.sellerId);
+                                                                    setView('seller-audit');
+                                                                }
+                                                            }}
+                                                            className="size-8 rounded-full flex items-center justify-center text-slate-400 hover:text-primary transition-colors"
+                                                            title="Ver Extrato"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[20px]">receipt_long</span>
+                                                        </button>
+                                                    </div>
                                                     <p className="text-xs text-slate-500 flex items-center gap-1">
                                                         <span className="material-symbols-outlined text-[10px]">calendar_today</span>
                                                         {new Date(closing.closingDate).toLocaleDateString('pt-BR', {

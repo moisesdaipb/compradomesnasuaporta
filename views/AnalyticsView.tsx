@@ -44,6 +44,8 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     const [showFilters, setShowFilters] = React.useState(false);
     const [selectedSaleId, setSelectedSaleId] = React.useState<string | null>(null);
     const [instTab, setInstTab] = React.useState<'all' | 'pending' | 'overdue'>('all');
+    const [showEmptyDays, setShowEmptyDays] = React.useState(false);
+    const [chartViewMode, setChartViewMode] = React.useState<'daily' | 'monthly'>('daily');
     const [datePreset, setDatePreset] = React.useState<'mes' | '60' | '90' | 'tudo' | 'custom'>('tudo');
     const [filters, setFilters] = React.useState<{
         dateFrom: string; dateTo: string; seller: string; channel: string;
@@ -116,15 +118,32 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     const overdueInstallments = useMemo(() => pendingInstallments.filter(i => i.dueDate < Date.now()), [pendingInstallments]);
     const overdueTotal = useMemo(() => overdueInstallments.reduce((a, i) => a + i.amount, 0), [overdueInstallments]);
     const paidInstTotal = useMemo(() => activeInstallments.filter(i => i.status === InstallmentStatus.PAID).reduce((a, i) => a + i.amount, 0), [activeInstallments]);
+    const totalReceived = useMemo(() => cashRevenue + paidInstTotal, [cashRevenue, paidInstTotal]);
 
-    // Closing
-    // Closing — use the amounts reported in each closing directly
+    const validClosings = useMemo(() => dailyClosings.filter(c => c.status === ClosingStatus.APPROVED || c.status === ClosingStatus.PENDING), [dailyClosings]);
+    const closedSaleIds = useMemo(() => new Set(validClosings.flatMap(c => c.salesIds || [])), [validClosings]);
+    const closedInstIds = useMemo(() => new Set(validClosings.flatMap(c => c.installmentIds || [])), [validClosings]);
+
+    const activeClosings = useMemo(() => {
+        return dailyClosings.filter(c => {
+            if (filters.dateFrom) { const from = new Date(filters.dateFrom + 'T00:00:00').getTime(); if (c.closingDate < from) return false; }
+            if (filters.dateTo) { const to = new Date(filters.dateTo + 'T23:59:59').getTime(); if (c.closingDate > to) return false; }
+            if (filters.seller && c.sellerId !== filters.seller) return false;
+            return true;
+        });
+    }, [dailyClosings, filters]);
+
     const closedAmount = useMemo(() => {
-        return dailyClosings
+        return activeClosings
             .filter(c => c.status === ClosingStatus.APPROVED || c.status === ClosingStatus.PENDING)
             .reduce((a, c) => a + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0);
-    }, [dailyClosings]);
-    const unclosedAmount = useMemo(() => Math.max(0, (totalRevenue - termRevenue) - closedAmount), [totalRevenue, termRevenue, closedAmount]);
+    }, [activeClosings]);
+
+    const unclosedAmount = useMemo(() => {
+        const unclosedCashSales = activeSales.filter(s => s.paymentMethod !== PaymentMethod.TERM && !closedSaleIds.has(s.id)).reduce((acc, s) => acc + s.total, 0);
+        const unclosedInstallments = activeInstallments.filter(i => i.status === InstallmentStatus.PAID && !closedInstIds.has(i.id)).reduce((acc, i) => acc + i.amount, 0);
+        return unclosedCashSales + unclosedInstallments;
+    }, [activeSales, activeInstallments, closedSaleIds, closedInstIds]);
 
     // Payment methods
     const paymentBreakdown = useMemo(() => {
@@ -167,36 +186,58 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     const goal = useMemo(() => goals.find(g => g.type === 'geral' && g.period === 'mensal' && !g.isCancelled), [goals]);
     const goalPct = useMemo(() => Math.min(((totalRevenue / (goal?.amount || 50000)) * 100), 100), [totalRevenue, goal]);
 
-    // Daily sales trend
-    const dailyTrend = useMemo(() => {
+    // Sales trend (daily or monthly)
+    const salesTrend = useMemo(() => {
+        if (chartViewMode === 'monthly') {
+            const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+            return Array.from({ length: 12 }, (_, i) => {
+                const monthSales = activeSales.filter(s => {
+                    const d = new Date(s.createdAt);
+                    return d.getMonth() === i && d.getFullYear() === chartYear;
+                });
+                return { label: monthNames[i], value: monthSales.reduce((a, s) => a + s.total, 0) };
+            });
+        }
         const daysInMonth = new Date(chartYear, chartMonth + 1, 0).getDate();
         return Array.from({ length: daysInMonth }, (_, i) => {
             const dayNum = i + 1;
             const daySales = activeSales.filter(s => { const d = new Date(s.createdAt); return d.getDate() === dayNum && d.getMonth() === chartMonth && d.getFullYear() === chartYear; });
             return { label: dayNum.toString(), value: daySales.reduce((a, s) => a + s.total, 0) };
         });
-    }, [activeSales, chartMonth, chartYear]);
-    const maxDailyTrend = Math.max(...dailyTrend.map(d => d.value), 100);
+    }, [activeSales, chartMonth, chartYear, chartViewMode]);
+    const maxSalesTrend = Math.max(...salesTrend.map(d => d.value), 100);
 
     // Installment receivables trend
     const instTrend = useMemo(() => {
         const pending = installments.filter(i => i.status === InstallmentStatus.PENDING);
         if (instDrill.level === 'month') {
-            const now = new Date();
             const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-            return Array.from({ length: 12 }, (_, idx) => {
-                const d = new Date(now.getFullYear(), now.getMonth() - 11 + idx, 1);
+            const map: Record<string, { label: string; month: number; year: number; value: number; sortKey: number }> = {};
+            pending.forEach(i => {
+                const d = new Date(i.dueDate);
                 const m = d.getMonth(); const y = d.getFullYear();
-                const start = new Date(y, m, 1).getTime(); const end = new Date(y, m + 1, 0, 23, 59, 59).getTime();
-                return { label: `${monthNames[m]}/${String(y).slice(2)}`, month: m, year: y, value: pending.filter(i => i.dueDate >= start && i.dueDate <= end).reduce((a, i) => a + i.amount, 0) };
+                const key = `${y}-${m}`;
+                if (!map[key]) map[key] = { label: `${monthNames[m]}/${String(y).slice(2)}`, month: m, year: y, value: 0, sortKey: y * 100 + m };
+                map[key].value += i.amount || 0;
             });
+            if (Object.keys(map).length === 0) {
+                const now = new Date();
+                return [{ label: `${monthNames[now.getMonth()]}/${String(now.getFullYear()).slice(2)}`, month: now.getMonth(), year: now.getFullYear(), value: 0 }];
+            }
+            return Object.values(map).sort((a, b) => a.sortKey - b.sortKey);
         }
         const m = instDrill.month!; const y = instDrill.year!;
-        const days = new Date(y, m + 1, 0).getDate();
-        return Array.from({ length: days }, (_, i) => {
-            const start = new Date(y, m, i + 1).getTime(); const end = new Date(y, m, i + 1, 23, 59, 59).getTime();
-            return { label: String(i + 1), month: m, year: y, value: pending.filter(inst => inst.dueDate >= start && inst.dueDate <= end).reduce((a, inst) => a + inst.amount, 0) };
+        const map: Record<string, { label: string; month: number; year: number; value: number }> = {};
+        const startOfMonth = new Date(y, m, 1).getTime();
+        const endOfMonth = new Date(y, m + 1, 0, 23, 59, 59).getTime();
+        pending.filter(i => i.dueDate >= startOfMonth && i.dueDate <= endOfMonth).forEach(i => {
+            const d = new Date(i.dueDate);
+            const day = d.getDate();
+            if (!map[day]) map[day] = { label: String(day), month: m, year: y, value: 0 };
+            map[day].value += i.amount || 0;
         });
+        if (Object.keys(map).length === 0) return [{ label: "1", month: m, year: y, value: 0 }];
+        return Object.values(map).sort((a, b) => Number(a.label) - Number(b.label));
     }, [installments, instDrill]);
     const maxInstTrend = Math.max(...instTrend.map(d => d.value), 100);
 
@@ -246,17 +287,49 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     const geoMax = Math.max(...geoItems.map(g => g.total), 1);
 
     // --- CARD COMPONENT ---
-    const KpiCard: React.FC<{ icon: string; label: string; value: string; sub?: string; gradient: string; onClick?: () => void; badge?: string }> = ({ icon, label, value, sub, gradient, onClick, badge }) => (
-        <div onClick={onClick} className={`relative p-5 rounded-2xl shadow-lg overflow-hidden transition-all duration-300 cursor-pointer hover:scale-[1.03] hover:shadow-xl active:scale-[0.98] bg-gradient-to-br ${gradient}`}>
+    const KpiCard: React.FC<{ icon: string; label: string; value: string; sub?: string; gradient: string; onClick?: () => void; badge?: string; pct?: string }> = ({ icon, label, value, sub, gradient, onClick, badge, pct }) => (
+        <div onClick={onClick} className={`relative p-5 rounded-2xl shadow-lg overflow-hidden transition-all duration-300 ${onClick ? 'cursor-pointer hover:scale-[1.03] hover:shadow-xl active:scale-[0.98]' : ''} bg-gradient-to-br ${gradient}`}>
             <div className="absolute top-0 right-0 p-4 opacity-[0.08] scale-[2] pointer-events-none"><span className="material-symbols-outlined text-white text-6xl">{icon}</span></div>
-            <div className="relative z-10">
+            <div className="relative z-10 flex flex-col h-full">
                 <div className="flex items-center justify-between mb-3">
                     <div className="size-9 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm"><span className="material-symbols-outlined text-white text-lg">{icon}</span></div>
                     {badge && <span className="text-[9px] font-black text-white/80 bg-white/15 px-2 py-0.5 rounded-lg uppercase tracking-widest backdrop-blur-sm">{badge}</span>}
                 </div>
-                <p className="text-[9px] font-black text-white/70 uppercase tracking-[0.15em] mb-0.5">{label}</p>
-                <h2 className="text-xl font-black text-white leading-tight">{value}</h2>
-                {sub && <p className="text-[10px] font-medium text-white/60 mt-1">{sub}</p>}
+                <div className="mt-auto">
+                    <p className="text-[9px] font-black text-white/70 uppercase tracking-[0.15em] mb-0.5">{label}</p>
+                    <div className="flex items-baseline gap-2">
+                        <h2 className="text-xl font-black text-white leading-tight">{value}</h2>
+                        {pct && <span className="text-[10px] font-black text-white bg-black/20 px-1.5 py-0.5 rounded shadow-sm opacity-90">{pct}</span>}
+                    </div>
+                    {sub && <p className="text-[10px] font-medium text-white/60 mt-1">{sub}</p>}
+                </div>
+            </div>
+        </div>
+    );
+
+    const ContasKpiCard: React.FC<{ closedAmt: number, unclosedAmt: number, pct: string, onClick?: () => void }> = ({ closedAmt, unclosedAmt, pct, onClick }) => (
+        <div onClick={onClick} className={`relative p-5 rounded-2xl shadow-lg overflow-hidden transition-all duration-300 ${onClick ? 'cursor-pointer hover:scale-[1.03] hover:shadow-xl active:scale-[0.98]' : ''} bg-gradient-to-br from-[#1d8268] to-[#125c48]`}>
+            <div className="absolute top-0 right-0 p-4 opacity-[0.08] scale-[2] pointer-events-none"><span className="material-symbols-outlined text-white text-6xl">manage_accounts</span></div>
+            <div className="relative z-10 flex flex-col h-full justify-between">
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="size-9 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shrink-0">
+                        <span className="material-symbols-outlined text-white text-lg">person_check</span>
+                    </div>
+                    <p className="text-[10px] font-black leading-tight text-white uppercase tracking-[0.1em]">Contas Vendedores</p>
+                </div>
+                <div className="space-y-2 w-full mt-auto">
+                    <div className="flex items-end justify-between border-b border-emerald-400/30 pb-2">
+                        <span className="text-[10px] font-medium text-emerald-100/90 tracking-wide">Pagas (Central)</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-black text-white bg-black/20 px-1.5 py-0.5 rounded shadow-inner">{pct}</span>
+                            <span className="text-[15px] leading-none font-black text-[#8be2c7]">{fmt(closedAmt)}</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                        <span className="text-[10px] font-black text-[#fed858] uppercase tracking-wider">Em mãos</span>
+                        <span className="text-[15px] leading-none font-black text-[#fed858]">{fmt(unclosedAmt)}</span>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -274,7 +347,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     );
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-[#0f172a] px-4 md:px-6 py-6 pb-24 no-scrollbar overflow-x-hidden">
+        <div className="min-h-screen bg-transparent px-4 md:px-6 py-6 pb-24 no-scrollbar overflow-x-hidden">
             <div className="max-w-[1400px] mx-auto space-y-6">
 
                 {/* HEADER */}
@@ -355,10 +428,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
 
                 {/* ROW 1 - KPI CARDS */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <KpiCard icon="payments" label="Faturamento Total" value={fmt(totalRevenue)} sub={`${activeSales.length} vendas · Online ${fmt(onlineRevenue)} · Presencial ${fmt(presencialRevenue)}`} gradient="from-slate-700 to-slate-900" onClick={() => setActiveModal('faturamento')} badge="Live" />
-                    <KpiCard icon="event_busy" label="Valor em Atraso" value={fmt(overdueTotal)} sub={`${overdueInstallments.length} parcelas vencidas`} gradient="from-red-500 to-red-700" onClick={() => { setActiveModal('parcelas'); setInstTab('overdue'); }} />
-                    <KpiCard icon="credit_score" label="Parcelas Pendentes" value={fmt(pendingInstTotal)} sub={overdueTotal > 0 ? `⚠ ${fmt(overdueTotal)} em atraso` : 'Nenhuma em atraso'} gradient="from-violet-500 to-indigo-600" onClick={() => { setActiveModal('parcelas'); setInstTab('all'); }} />
-                    <KpiCard icon="savings" label="Prestação de Contas" value={fmt(unclosedAmount)} sub={`Já fechado: ${fmt(closedAmount)} de ${fmt(cashRevenue)}`} gradient={unclosedAmount > 0 ? 'from-slate-500 to-slate-700' : 'from-emerald-500 to-teal-600'} onClick={() => setActiveModal('fechamento')} badge={unclosedAmount > 0 ? 'Pendente' : '✓'} />
+                    <KpiCard icon="payments" label="Faturamento Total" value={fmt(totalRevenue)} sub={`${activeSales.length} vendas realizadas`} gradient="from-slate-700 to-slate-900" onClick={() => setActiveModal('faturamento')} badge="Live" />
+                    <ContasKpiCard closedAmt={closedAmount} unclosedAmt={unclosedAmount} pct={totalRevenue > 0 ? ((closedAmount / totalRevenue) * 100).toFixed(1) + '%' : '0%'} />
+                    <KpiCard icon="event_busy" label="Valor em Atraso" value={fmt(overdueTotal)} pct={totalRevenue > 0 ? ((overdueTotal / totalRevenue) * 100).toFixed(1) + '%' : '0%'} sub={`${overdueInstallments.length} parcelas vencidas`} gradient="from-red-500 to-red-700" onClick={() => { setActiveModal('parcelas'); setInstTab('overdue'); }} />
+                    <KpiCard icon="credit_score" label="A Receber (Total)" value={fmt(pendingInstTotal)} pct={totalRevenue > 0 ? ((pendingInstTotal / totalRevenue) * 100).toFixed(1) + '%' : '0%'} sub={overdueTotal > 0 ? `Inclui ${fmt(overdueTotal)} em atraso` : 'Nenhum atraso incluído'} gradient="from-violet-500 to-indigo-600" onClick={() => { setActiveModal('parcelas'); setInstTab('all'); }} />
                 </div>
 
                 {/* ROW 2 - SECONDARY CARDS */}
@@ -409,29 +482,37 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                     {/* DAILY SALES COLUMN CHART */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2"><span className="material-symbols-outlined text-primary text-lg">bar_chart</span> Vendas Diárias</h3>
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2"><span className="material-symbols-outlined text-primary text-lg">bar_chart</span> Vendas {chartViewMode === 'monthly' ? 'Mensais' : 'Diárias'}</h3>
                             <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 rounded-xl p-1">
-                                <select value={chartMonth} onChange={e => setChartMonth(Number(e.target.value))} className="bg-transparent text-[9px] font-black uppercase tracking-widest px-2 py-1 outline-none cursor-pointer text-slate-600 dark:text-slate-300 border-none">
-                                    {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((m, i) => <option key={i} value={i}>{m}</option>)}
-                                </select>
+                                <button onClick={() => setChartViewMode(chartViewMode === 'daily' ? 'monthly' : 'daily')} className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg transition-all ${chartViewMode === 'monthly' ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>{chartViewMode === 'daily' ? 'Ver Ano' : 'Ver Dia'}</button>
+                                <button onClick={() => setShowEmptyDays(!showEmptyDays)} className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg transition-all ${showEmptyDays ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>{showEmptyDays ? 'Ocultar Vazios' : 'Vazios'}</button>
+                                {chartViewMode === 'daily' && (
+                                    <select value={chartMonth} onChange={e => setChartMonth(Number(e.target.value))} className="bg-transparent text-[9px] font-black uppercase tracking-widest px-2 py-1 outline-none cursor-pointer text-slate-600 dark:text-slate-300 border-none">
+                                        {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((m, i) => <option key={i} value={i}>{m}</option>)}
+                                    </select>
+                                )}
                                 <select value={chartYear} onChange={e => setChartYear(Number(e.target.value))} className="bg-transparent text-[9px] font-black uppercase tracking-widest px-2 py-1 outline-none cursor-pointer text-slate-600 dark:text-slate-300 border-none">
                                     {[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
                                 </select>
                             </div>
                         </div>
-                        <div className="h-[200px] flex items-end gap-[2px] px-1">
-                            {dailyTrend.map((d, i) => {
-                                const h = maxDailyTrend > 0 ? Math.max(d.value > 0 ? 3 : 0, (d.value / maxDailyTrend) * 100) : 0;
-                                const fmtShort = (v: number) => v >= 1000 ? `${(v/1000).toFixed(1).replace('.0','')}k` : v > 0 ? String(Math.round(v)) : '';
-                                return (
-                                    <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group/b relative">
-                                        {d.value > 0 && <span className="text-[6px] font-black text-primary mb-0.5 opacity-70 group-hover/b:opacity-100">{fmtShort(d.value)}</span>}
-                                        <div className="absolute -top-1 left-1/2 -translate-x-1/2 opacity-0 group-hover/b:opacity-100 z-30 bg-slate-900 text-white text-[7px] font-black px-1.5 py-0.5 rounded-md shadow-lg whitespace-nowrap pointer-events-none">Dia {d.label}: {fmt(d.value)}</div>
-                                        <div className={`w-full rounded-t-sm transition-all duration-500 cursor-pointer ${d.value > 0 ? 'bg-gradient-to-t from-primary to-blue-400 group-hover/b:to-blue-300 shadow-sm shadow-primary/20' : 'bg-slate-100 dark:bg-slate-700/30'}`} style={{ height: `${h}%`, minHeight: d.value > 0 ? '3px' : '1px' }} />
-                                        <span className={`text-[7px] font-bold mt-1 ${d.value > 0 ? 'text-slate-500' : 'text-slate-300'}`}>{d.label}</span>
-                                    </div>
-                                );
-                            })}
+                        <div className="h-[200px] flex items-end gap-[1px] px-1 pb-1">
+                            {(() => {
+                                const data = showEmptyDays ? salesTrend : salesTrend.filter(d => d.value > 0);
+                                const isDense = data.length > 15;
+                                return data.map((d, i) => {
+                                    const h = maxSalesTrend > 0 ? Math.max(d.value > 0 ? 3 : 0, (d.value / maxSalesTrend) * 100) : 0;
+                                    const fmtShort = (v: number) => v >= 1000 ? `${(v/1000).toFixed(1).replace('.0','')}k` : v > 0 ? String(Math.round(v)) : '';
+                                    return (
+                                        <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group/b relative">
+                                            {d.value > 0 && <span className={`font-black text-primary opacity-90 group-hover/b:opacity-100 transition-all ${isDense ? 'text-[6px] -rotate-90 origin-bottom translate-y-1 mb-2' : 'text-[9px] mb-1'}`}>{fmtShort(d.value)}</span>}
+                                            <div className="absolute -top-1 left-1/2 -translate-x-1/2 opacity-0 group-hover/b:opacity-100 z-30 bg-slate-900 text-white text-[10px] font-black px-2 py-1 rounded-md shadow-lg whitespace-nowrap pointer-events-none">Dia {d.label}: {fmt(d.value)}</div>
+                                            <div className={`w-full rounded-t-sm transition-all duration-500 cursor-pointer ${d.value > 0 ? 'bg-gradient-to-t from-primary to-blue-400 group-hover/b:to-blue-300 shadow-sm shadow-primary/20' : 'bg-slate-100 dark:bg-slate-700/30'}`} style={{ height: `${h}%`, minHeight: d.value > 0 ? '4px' : '2px' }} />
+                                            <span className={`font-black mt-1.5 ${isDense ? 'text-[7px]' : 'text-[10px]'} ${d.value > 0 ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>{d.label}</span>
+                                        </div>
+                                    );
+                                });
+                            })()}
                         </div>
                     </div>
 
@@ -636,15 +717,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                         </div>
                     </Modal>
                 )}
-                {activeModal === 'fechamento' && (
-                    <Modal title="Fechamento de Caixa" icon="savings" color={unclosedAmount > 0 ? 'from-red-500 to-rose-700' : 'from-emerald-500 to-teal-700'} onClose={() => setActiveModal(null)}>
-                        <div className="space-y-4">
-                            <div className="flex justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl"><span className="text-sm font-bold text-emerald-600">Caixa Fechado</span><span className="text-sm font-black">{fmt(closedAmount)}</span></div>
-                            <div className="flex justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-xl"><span className="text-sm font-bold text-red-600">Falta Prestar Contas</span><span className="text-sm font-black">{fmt(unclosedAmount)}</span></div>
-                            <div className="border-t pt-3"><p className="text-[10px] text-slate-400 mb-1">Total à vista: {fmt(cashRevenue)}</p></div>
-                        </div>
-                    </Modal>
-                )}
+
                 {activeModal === 'pagamento' && (
                     <Modal title="Formas de Pagamento" icon="pie_chart" color="from-indigo-500 to-purple-700" onClose={() => setActiveModal(null)}>
                         <div className="space-y-3">

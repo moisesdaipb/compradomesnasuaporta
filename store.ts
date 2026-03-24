@@ -151,6 +151,7 @@ export const fetchCustomers = async (): Promise<Customer[]> => {
     zipCode: c.zip_code,
     state: c.state,
     complement: c.complement,
+    tags: c.tags,
     createdAt: new Date(c.created_at).getTime(),
     createdBy: c.created_by
   }));
@@ -480,6 +481,7 @@ export const upsertCustomer = async (customer: Partial<Customer>) => {
   if (customer.zipCode !== undefined) mapped.zip_code = customer.zipCode;
   if (customer.state !== undefined) mapped.state = customer.state;
   if (customer.complement !== undefined) mapped.complement = customer.complement;
+  if (customer.tags !== undefined) mapped.tags = customer.tags;
   if (customer.createdAt !== undefined) mapped.created_at = new Date(customer.createdAt).toISOString();
   if (customer.createdBy !== undefined) mapped.created_by = customer.createdBy;
 
@@ -509,6 +511,7 @@ export const upsertCustomer = async (customer: Partial<Customer>) => {
     zipCode: data.zip_code,
     state: data.state,
     complement: data.complement,
+    tags: data.tags,
     createdAt: new Date(data.created_at).getTime(),
     createdBy: data.created_by
   };
