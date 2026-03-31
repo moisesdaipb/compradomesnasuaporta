@@ -26,6 +26,8 @@ const ReceivablesView: React.FC<ReceivablesViewProps> = ({
 
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState<number | null>(today.getTime());
+    const [isDayModalOpen, setIsDayModalOpen] = useState(false);
+    const [modalFilter, setModalFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('all');
     const [selectedSaleDetail, setSelectedSaleDetail] = useState<Sale | null>(null);
 
     // Filter relevant installments
@@ -162,7 +164,10 @@ const ReceivablesView: React.FC<ReceivablesViewProps> = ({
                             {calendarData.map((d, index) => (
                                 <div
                                     key={index}
-                                    onClick={() => setSelectedDate(d.timestamp)}
+                                    onClick={() => {
+                                        setSelectedDate(d.timestamp);
+                                        if (d.count > 0) setIsDayModalOpen(true);
+                                    }}
                                     className={`relative bg-white dark:bg-slate-800 aspect-square flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-slate-700/50 ${
                                         selectedDate === d.timestamp ? 'ring-2 ring-inset ring-primary z-10' : ''
                                     } ${!d.isCurrentMonth ? 'opacity-30' : ''}`}
@@ -225,9 +230,115 @@ const ReceivablesView: React.FC<ReceivablesViewProps> = ({
                 </div>
             </div>
 
+            {/* Selected Day Modal */}
+            {isDayModalOpen && selectedDate && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="w-full max-w-lg bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+                        <div className="p-6 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between shrink-0">
+                            <div>
+                                <h3 className="font-black text-slate-800 dark:text-white">Parcelas do Dia</h3>
+                                <p className="text-xs text-slate-500 font-bold">{new Date(selectedDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</p>
+                            </div>
+                            <button onClick={() => { setIsDayModalOpen(false); setModalFilter('all'); }} className="size-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        {/* Filter Bar */}
+                        <div className="px-6 py-3 bg-slate-50 dark:bg-slate-700/30 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 border-b border-slate-100 dark:border-slate-700">
+                            {[
+                                { id: 'all', label: 'Todas' },
+                                { id: 'pending', label: 'Pendentes' },
+                                { id: 'overdue', label: 'Atrasadas' },
+                                { id: 'paid', label: 'Pagas' }
+                            ].map(f => (
+                                <button
+                                    key={f.id}
+                                    onClick={() => setModalFilter(f.id as any)}
+                                    className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${
+                                        modalFilter === f.id 
+                                            ? 'bg-primary text-white shadow-lg shadow-primary/20' 
+                                            : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-100 dark:border-slate-700'
+                                    }`}
+                                >
+                                    {f.label}
+                                </button>
+                            ))}
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto no-scrollbar space-y-3">
+                            {selectedDayInstallments
+                                .filter(inst => {
+                                    if (modalFilter === 'all') return true;
+                                    if (modalFilter === 'paid') return inst.status === InstallmentStatus.PAID;
+                                    const isOverdue = inst.status === InstallmentStatus.PENDING && inst.dueDate < today.getTime();
+                                    if (modalFilter === 'pending') return inst.status === InstallmentStatus.PENDING && !isOverdue;
+                                    if (modalFilter === 'overdue') return isOverdue;
+                                    return true;
+                                }).length === 0 ? (
+                                <div className="p-8 text-center bg-slate-50 dark:bg-slate-700/30 rounded-2xl">
+                                    <p className="text-slate-400 font-bold text-sm">Nenhuma parcela encontrada</p>
+                                </div>
+                            ) : (
+                                selectedDayInstallments
+                                    .filter(inst => {
+                                        if (modalFilter === 'all') return true;
+                                        if (modalFilter === 'paid') return inst.status === InstallmentStatus.PAID;
+                                        const isOverdue = inst.status === InstallmentStatus.PENDING && inst.dueDate < today.getTime();
+                                        if (modalFilter === 'pending') return inst.status === InstallmentStatus.PENDING && !isOverdue;
+                                        if (modalFilter === 'overdue') return isOverdue;
+                                        return true;
+                                    })
+                                    .map(inst => {
+                                        const sale = sales.find(s => s.id === inst.saleId);
+                                        const sellerName = sale?.sellerName || 'Vendedor';
+
+                                        return (
+                                            <div 
+                                                key={inst.id}
+                                                onClick={() => {
+                                                    if (sale) setSelectedSaleDetail(sale);
+                                                }}
+                                                className="bg-white dark:bg-slate-700/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-600 shadow-sm flex items-center justify-between active:scale-[0.98] transition-all"
+                                            >
+                                                <div className="flex-1 min-w-0 pr-2">
+                                                    <p className="font-bold text-slate-800 dark:text-white truncate">{inst.customerName}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <p className="text-[10px] font-bold text-slate-400">Parcela {inst.number}/{inst.totalInstallments}</p>
+                                                        <span className="text-[8px] text-slate-300">•</span>
+                                                        <p className="text-[10px] font-bold text-primary opacity-80 uppercase tracking-tighter">{sellerName}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <p className="text-sm font-black text-primary">{formatCurrency(inst.amount)}</p>
+                                                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                        inst.status === InstallmentStatus.PAID ? 'bg-success/10 text-success' : 
+                                                        inst.dueDate < today.getTime() ? 'bg-danger/10 text-danger' : 'bg-yellow-500/10 text-yellow-600'
+                                                    }`}>
+                                                        {inst.status === InstallmentStatus.PAID ? 'Pago' : inst.dueDate < today.getTime() ? 'Atrasado' : 'Pendente'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                            )}
+                        </div>
+                        
+                        <div className="p-6 bg-slate-50 dark:bg-slate-700/30 border-t border-slate-100 dark:border-slate-700 shrink-0">
+                            <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
+                                <p className="text-[10px] font-black uppercase text-slate-400">Total do Dia</p>
+                                <p className="text-xl font-black text-slate-900 dark:text-white">
+                                    {formatCurrency(selectedDayInstallments.reduce((acc, i) => acc + i.amount, 0))}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Sale Details Modal */}
             {selectedSaleDetail && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
                     <div className="w-full max-w-lg bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="p-6 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between">
                             <div>

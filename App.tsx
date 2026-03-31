@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ViewState,
   AppData,
@@ -147,6 +147,7 @@ const App: React.FC = () => {
   // View State
   const [view, setView] = useState<ViewState>('dashboard');
   const [selectedAuditSellerId, setSelectedAuditSellerId] = useState<string | null>(null);
+  const [impersonatedSellerId, setImpersonatedSellerId] = useState<string | null>(null);
 
   console.log('[App] State:', { isLoaded, sessionEmail: session?.email, view });
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register' | 'forgot-password' | 'reset-password'>('login');
@@ -462,6 +463,17 @@ const App: React.FC = () => {
       console.error('Error during signOut:', e);
     }
   }, [clearAppState]);
+
+  const handleStartImpersonation = useCallback((sellerId: string) => {
+    console.log('[App] Starting impersonation for seller:', sellerId);
+    setImpersonatedSellerId(sellerId);
+    setView('dashboard');
+  }, []);
+
+  const handleStopImpersonation = useCallback(() => {
+    console.log('[App] Stopping impersonation');
+    setImpersonatedSellerId(null);
+  }, []);
 
   // Initialize
   useEffect(() => {
@@ -906,6 +918,14 @@ const App: React.FC = () => {
   // Customer Handlers
   const handleAddCustomer = useCallback(async (customer: Omit<Customer, 'id' | 'createdAt' | 'createdBy'>): Promise<Customer> => {
     try {
+      if (customer.cpf) {
+        const cleanCpf = customer.cpf.replace(/\D/g, '');
+        const exists = appData.customers.find(c => (c.cpf || '').replace(/\D/g, '') === cleanCpf);
+        if (exists) {
+          throw new Error('CPF_ALREADY_EXISTS');
+        }
+      }
+
       const newCustomerData = {
         ...customer,
         createdAt: Date.now(),
@@ -1524,22 +1544,42 @@ const App: React.FC = () => {
 
   // Get customer for online checkout
   const getCustomerForCheckout = (): Customer | null => {
-    if (!session) return null;
+    if (!effectiveUser) return null;
     return appData.customers.find(c =>
-      c.id === session.id ||
-      (c.email && c.email === session.email && c.email !== 'Endereço não cadastrado')
+      c.id === effectiveUser.id ||
+      (c.email && c.email === effectiveUser.email && c.email !== 'Endereço não cadastrado')
     ) || {
-      id: session.id,
-      name: session.name,
+      id: effectiveUser.id,
+      name: effectiveUser.name,
       cpf: '',
       phone: '',
       address: 'Endereço não cadastrado',
       city: '',
       neighborhood: '',
       createdAt: Date.now(),
-      createdBy: session.id,
+      createdBy: effectiveUser.id,
     };
   };
+
+  const impersonatedSeller = useMemo(() => {
+    if (!impersonatedSellerId) return null;
+    return appData.team.find(m => m.id === impersonatedSellerId) || 
+           appData.allUsers.find(u => u.id === impersonatedSellerId);
+  }, [impersonatedSellerId, appData.team, appData.allUsers]);
+
+  const effectiveUser = useMemo(() => {
+    if (impersonatedSellerId && impersonatedSeller && session) {
+      return {
+        ...session,
+        id: impersonatedSellerId,
+        name: impersonatedSeller.name,
+        role: 'vendedor' as UserRole,
+      };
+    }
+    return session;
+  }, [session, impersonatedSellerId, impersonatedSeller]);
+
+  const isReadOnly = !!impersonatedSellerId;
 
   // Render
   if (!isLoaded) {
@@ -1582,10 +1622,17 @@ const App: React.FC = () => {
   }
 
   if (!session) {
-    return <LoginView settings={appData.settings} onLogin={handleLogin} onRegisterCustomer={handleAddCustomer} initialMode={authInitialMode} />;
+    return (
+      <LoginView
+        onLogin={handleLogin}
+        initialMode={authInitialMode}
+        setInitialMode={setAuthInitialMode}
+        settings={appData.settings}
+      />
+    );
   }
 
-  const renderContent = () => {
+  const renderContent = (user: UserSession, isReadOnly: boolean) => {
     switch (view) {
       case 'users-management':
         return (
@@ -1597,7 +1644,7 @@ const App: React.FC = () => {
         );
 
       case 'dashboard':
-        if (session.role === 'vendedor') {
+        if (user.role === 'vendedor') {
           return (
             <SellerManagementView
               sales={appData.sales}
@@ -1605,8 +1652,8 @@ const App: React.FC = () => {
               deliveries={appData.deliveries}
               dailyClosings={appData.dailyClosings}
               goals={appData.goals}
-              sellerId={session.id}
-              sellerName={session.name}
+              sellerId={user.id}
+              sellerName={user.name}
               team={appData.team}
               setView={setView}
             />
@@ -1622,8 +1669,8 @@ const App: React.FC = () => {
             installments={appData.installments}
             dailyClosings={appData.dailyClosings}
             goals={appData.goals}
-            userRole={session.role}
-            userId={session.id}
+            userRole={user.role}
+            userId={user.id}
             setView={setView}
             onSelectAuditSeller={setSelectedAuditSellerId}
           />
@@ -1633,12 +1680,9 @@ const App: React.FC = () => {
         return (
           <TeamView
             team={appData.team}
-            onAddMember={handleAddTeamMember}
-            onUpdateMember={handleUpdateTeamMember}
-            onToggleStatus={handleToggleTeamStatus}
-            onDeleteMember={handleDeleteTeamMember}
+            onUpdateTeam={() => triggerRefresh(100)}
             setView={setView}
-            onSelectAuditSeller={setSelectedAuditSellerId}
+            onStartImpersonation={handleStartImpersonation}
           />
         );
 
@@ -1648,7 +1692,7 @@ const App: React.FC = () => {
             basketModels={appData.basketModels}
             stock={appData.stock}
             stockEntries={appData.stockEntries}
-            userRole={session.role}
+            userRole={user.role}
             onDeleteEntry={handleDeleteStockEntry}
             onDeleteModel={handleDeleteBasketModel}
             onDecreaseStock={handleDecreaseStock}
@@ -1716,9 +1760,9 @@ const App: React.FC = () => {
 
       case 'customer-orders':
         const currentOrdersCustomerId = appData.customers.find(c =>
-          c.id === session.id ||
-          (c.email && c.email === session.email && c.email !== 'Endereço não cadastrado')
-        )?.id || session.id;
+          c.id === user.id ||
+          (c.email && c.email === user.email && c.email !== 'Endereço não cadastrado')
+        )?.id || user.id;
         return (
           <CustomerOrdersView
             sales={appData.sales}
@@ -1733,10 +1777,10 @@ const App: React.FC = () => {
       case 'customer-profile':
         return (
           <CustomerProfileView
-            session={session}
+            session={user}
             customer={appData.customers.find(c =>
-              c.id === session.id ||
-              (c.email && c.email === session.email && c.email !== 'Endereço não cadastrado')
+              c.id === user.id ||
+              (c.email && c.email === user.email && c.email !== 'Endereço não cadastrado')
             ) || null}
             onUpdateProfile={handleUpdateProfile}
             onLogout={handleLogout}
@@ -1747,15 +1791,16 @@ const App: React.FC = () => {
       case 'customer-register':
         return (
           <CustomerRegisterView
-            customers={session?.role === 'gerente'
+            customers={user?.role === 'gerente'
               ? appData.customers
-              : appData.customers.filter(c => c.createdBy === session?.id)}
+              : appData.customers.filter(c => c.createdBy === user?.id)}
             sales={appData.sales}
             installments={appData.installments}
             onAddCustomer={handleAddCustomer}
             onUpdateCustomer={handleUpdateCustomer}
             onSelectCustomer={setSelectedCustomer}
             setView={setView}
+            isReadOnly={isReadOnly}
           />
         );
 
@@ -1764,13 +1809,14 @@ const App: React.FC = () => {
           <PresentialSaleView
             basketModels={appData.basketModels}
             stock={appData.stock}
-            customers={session?.role === 'gerente'
+            customers={user?.role === 'gerente'
               ? appData.customers
-              : appData.customers.filter(c => c.createdBy === session?.id)}
+              : appData.customers.filter(c => c.createdBy === user?.id)}
             selectedCustomer={selectedCustomer}
             onSelectCustomer={setSelectedCustomer}
             onCreateSale={handleCreateSale}
             setView={setView}
+            isReadOnly={isReadOnly}
           />
         );
 
@@ -1780,13 +1826,14 @@ const App: React.FC = () => {
             installments={appData.installments}
             sales={appData.sales}
             customers={appData.customers}
-            userRole={session?.role || 'cliente'}
-            userId={session?.id || ''}
-            sellerId={session?.id || ''}
+            userRole={user?.role || 'cliente'}
+            userId={user?.id || ''}
+            sellerId={user?.id || ''}
             onPayInstallment={handlePayInstallment}
             onUpdateInstallments={handleUpdateInstallments}
             onRefresh={() => triggerRefresh(100)}
             setView={setView}
+            isReadOnly={isReadOnly}
           />
         );
 
@@ -1797,10 +1844,11 @@ const App: React.FC = () => {
             installments={appData.installments}
             deliveries={appData.deliveries}
             dailyClosings={appData.dailyClosings}
-            sellerId={session.id}
-            sellerName={session.name}
+            sellerId={user.id}
+            sellerName={user.name}
             onCreateClosing={handleCreateClosing}
             setView={setView}
+            isReadOnly={isReadOnly}
           />
         );
 
@@ -1824,8 +1872,8 @@ const App: React.FC = () => {
           <DeliveriesView
             deliveries={appData.deliveries}
             team={appData.team}
-            userRole={session.role}
-            userId={session.id}
+            userRole={user.role}
+            userId={user.id}
             onAssignDelivery={handleAssignDelivery}
             onUpdateStatus={handleUpdateDeliveryStatus}
             onCancelSale={handleCancelOrder}
@@ -1850,17 +1898,17 @@ const App: React.FC = () => {
             installments={appData.installments}
             sales={appData.sales}
             customers={appData.customers}
-            userRole={session?.role || 'cliente'}
-            userId={session?.id || ''}
+            userRole={user?.role || 'cliente'}
+            userId={user?.id || ''}
             onRefresh={() => triggerRefresh(100)}
             setView={setView}
           />
         );
 
       case 'sales-list':
-        const filteredSales = session.role === 'vendedor'
+        const filteredSales = user.role === 'vendedor'
           ? appData.sales.filter(s =>
-            s.sellerId === session.id &&
+            s.sellerId === user.id &&
             s.channel === 'presencial' &&
             s.status === OrderStatus.DELIVERED
           )
@@ -1874,9 +1922,9 @@ const App: React.FC = () => {
             onUpdateStatus={handleCancelOrder}
             onUpdateSale={handleUpdateSale}
             setView={setView}
-            userRole={session.role}
+            userRole={user.role}
             customers={appData.customers}
-            userId={session.id}
+            userId={user.id}
           />
         );
 
@@ -1913,8 +1961,8 @@ const App: React.FC = () => {
       case 'profile':
         return (
           <SellerProfileView
-            session={session}
-            teamMember={appData.team.find(m => m.id === session.id) || null}
+            session={user}
+            teamMember={appData.team.find(m => m.id === user.id) || null}
             onUpdateProfile={handleUpdateProfile}
             onLogout={handleLogout}
             setView={setView}
@@ -1944,15 +1992,15 @@ const App: React.FC = () => {
       case 'seller-audit':
         return (
           <SellerAuditView
-            sellerId={session.role === 'vendedor' ? session.id : (selectedAuditSellerId || session.id)}
+            sellerId={user.role === 'vendedor' ? user.id : (selectedAuditSellerId || user.id)}
             sales={appData.sales}
             installments={appData.installments}
             dailyClosings={appData.dailyClosings}
             team={appData.team}
-            session={session}
+            session={user}
             onBack={() => {
               setSelectedAuditSellerId(null);
-              setView(session.role === 'vendedor' ? 'dashboard' : 'closing-approval');
+              setView(user.role === 'vendedor' ? 'dashboard' : 'closing-approval');
             }}
           />
         );
@@ -1991,20 +2039,22 @@ const App: React.FC = () => {
   const deliveryCount = appData.deliveries.filter(d => {
     // Must be active status (ASSIGNED or PENDING and assigned to user)
     if (d.status !== DeliveryStatus.ASSIGNED && d.status !== DeliveryStatus.PENDING) return false;
-    return d.driverId === session?.id;
+    return d.driverId === effectiveUser?.id;
   }).length;
 
   return (
     <Layout
       currentView={view}
       setView={setView}
-      user={session}
+      user={effectiveUser}
       onLogout={handleLogout}
       cartCount={cartCount}
       deliveryCount={deliveryCount}
       settings={appData.settings}
+      isReadOnly={isReadOnly}
+      onExitImpersonation={handleStopImpersonation}
     >
-      {renderContent()}
+      {renderContent(effectiveUser, isReadOnly)}
     </Layout>
   );
 };

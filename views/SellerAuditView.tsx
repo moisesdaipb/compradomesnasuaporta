@@ -22,6 +22,9 @@ interface AuditRow {
   date: number; // For sorting (dueDate for installments, createdAt for cash sales)
   status: string;
   paymentMethod: string;
+  actualPaymentMethod?: string;
+  paidAt?: number;
+  saleDate: number;
   isAccounted: boolean;
   saleId: string;
   phone?: string;
@@ -78,6 +81,9 @@ const SellerAuditView: React.FC<SellerAuditViewProps> = ({
           date: sale.createdAt,
           status: 'Pago',
           paymentMethod: sale.paymentMethod,
+          actualPaymentMethod: sale.paymentMethod,
+          paidAt: sale.createdAt,
+          saleDate: sale.createdAt,
           isAccounted: closedSaleIdsAll.has(sale.id),
           saleId: sale.id,
         });
@@ -103,6 +109,9 @@ const SellerAuditView: React.FC<SellerAuditViewProps> = ({
           date: inst.dueDate,
           status: inst.status,
           paymentMethod: 'A Prazo',
+          actualPaymentMethod: inst.paymentMethod || undefined,
+          paidAt: inst.paidAt || undefined,
+          saleDate: sale.createdAt,
           isAccounted: closedInstIdsAll.has(inst.id),
           saleId: sale.id,
           details: `${index}/${total}`
@@ -182,10 +191,10 @@ const SellerAuditView: React.FC<SellerAuditViewProps> = ({
 
   // Render Helpers
   const getStatusBadge = (r: AuditRow) => {
-    if (r.isAccounted) return <span className="bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase">Fechado</span>;
-    if (r.status === 'Pago') return <span className="bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase">Pago (Em Mãos)</span>;
-    if (r.date < todayStart.getTime()) return <span className="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase">Atrasado</span>;
-    return <span className="bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase">A Vencer</span>;
+    if (r.isAccounted) return <span className="bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase border border-green-200 shadow-sm">Fechado</span>;
+    if (r.status === 'Pago') return <span className="bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase border border-blue-200 shadow-sm">Recebido em Mãos</span>;
+    if (r.date < todayStart.getTime()) return <span className="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase border border-red-200 shadow-sm">Em Atraso</span>;
+    return <span className="bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase border border-orange-200 shadow-sm">A Vencer</span>;
   };
 
   return (
@@ -282,19 +291,32 @@ const SellerAuditView: React.FC<SellerAuditViewProps> = ({
             {filteredRows.map((row) => (
               <div key={row.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
                     <p className="font-extrabold text-sm text-slate-800 dark:text-white truncate">{row.customerName}</p>
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 bg-slate-50 dark:bg-slate-900 px-2 py-0.5 rounded border border-slate-100 dark:border-slate-800">
+                      <span className="material-symbols-outlined text-[10px]">shopping_cart</span>
+                      Venda: {new Date(row.saleDate).toLocaleDateString('pt-BR')}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1.5">
                     {getStatusBadge(row)}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold mb-2">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">sell</span>
+                  <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500 font-semibold mb-2">
+                    <span className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded">
+                      <span className="material-symbols-outlined text-[12px] opacity-70">sell</span>
                       {row.type} {row.details && `(${row.details})`}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">event</span>
-                      {new Date(row.date).toLocaleDateString('pt-BR')}
-                    </span>
+                    {row.status === 'Pago' ? (
+                       <span className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded">
+                          <span className="material-symbols-outlined text-[12px]">payments</span>
+                          Pago via {row.actualPaymentMethod || row.paymentMethod} em {new Date(row.paidAt || row.date).toLocaleDateString('pt-BR')}
+                       </span>
+                    ) : (
+                       <span className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded">
+                          <span className="material-symbols-outlined text-[12px] opacity-70">event</span>
+                          Vence em {new Date(row.date).toLocaleDateString('pt-BR')}
+                       </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                      <p className={`font-black text-sm ${

@@ -23,6 +23,7 @@ interface PresentialSaleViewProps {
         changeAmount?: number,
     ) => void;
     setView: (v: ViewState) => void;
+    isReadOnly?: boolean;
 }
 
 const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
@@ -33,6 +34,7 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
     onSelectCustomer,
     onCreateSale,
     setView,
+    isReadOnly = false,
 }) => {
     const [step, setStep] = useState<'product' | 'payment' | 'installments' | 'success'>(
         selectedCustomer ? 'product' : 'product'
@@ -51,7 +53,7 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
     const total = model ? model.price * quantity : 0;
 
     const handleConfirm = () => {
-        if (!selectedCustomer || !model) return;
+        if (isReadOnly || !selectedCustomer || !model) return;
 
         if (paymentMethod === PaymentMethod.TERM) {
             const unfilled = installmentDates.slice(0, installmentsCount).some(d => d === 0);
@@ -178,12 +180,14 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
                         <p className="font-bold text-sm">{selectedCustomer.name}</p>
                         <p className="text-xs text-slate-500">{selectedCustomer.phone}</p>
                     </div>
-                    <button
-                        onClick={() => setView('customer-register')}
-                        className="text-xs text-primary font-medium"
-                    >
-                        Alterar
-                    </button>
+                    {!isReadOnly && (
+                        <button
+                            onClick={() => setView('customer-register')}
+                            className="text-xs text-primary font-medium"
+                        >
+                            Alterar
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -191,6 +195,7 @@ const PresentialSaleView: React.FC<PresentialSaleViewProps> = ({
                 <div className="mx-4 mt-4">
                     <button
                         onClick={() => setView('customer-register')}
+                        disabled={isReadOnly}
                         className="w-full p-4 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl flex items-center justify-center gap-2 text-slate-500"
                     >
                         <span className="material-symbols-outlined">person_add</span>

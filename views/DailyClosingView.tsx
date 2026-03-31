@@ -12,6 +12,7 @@ interface DailyClosingViewProps {
     sellerName: string;
     onCreateClosing: (closing: DailyClosing) => void;
     setView: (v: ViewState) => void;
+    isReadOnly?: boolean;
 }
 
 const DailyClosingView: React.FC<DailyClosingViewProps> = ({
@@ -23,6 +24,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     sellerName,
     onCreateClosing,
     setView,
+    isReadOnly = false,
 }) => {
     const [selectedSalesIds, setSelectedSalesIds] = useState<Set<string>>(new Set());
     const [selectedInstIds, setSelectedInstIds] = useState<Set<string>>(new Set());
@@ -30,6 +32,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     const [isConfirming, setIsConfirming] = useState(false);
     const [notes, setNotes] = useState('');
     const [viewingClosing, setViewingClosing] = useState<DailyClosing | null>(null);
+    const [activeFilter, setActiveFilter] = useState<'all' | 'received' | 'pending'>('received');
 
     // Closed IDs (Sales and Installments)
     const closedSalesIds = useMemo(() => {
@@ -83,6 +86,16 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                 !closedInstIds.has(i.id);
         }).sort((a, b) => (b.paidAt || 0) - (a.paidAt || 0)),
         [installments, closedInstIds, sales, sellerId, deliveries]
+    );
+
+    const pendingInstallments = useMemo(() =>
+        installments.filter(i => {
+            const sale = sales.find(s => s.id === i.saleId);
+            const delivery = deliveries.find(d => d.saleId === i.saleId);
+            const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId;
+            return i.status === InstallmentStatus.PENDING && isAssignedToMe;
+        }).sort((a, b) => a.dueDate - b.dueDate),
+        [installments, sales, sellerId, deliveries]
     );
 
     const totals = useMemo(() => {
@@ -155,6 +168,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     }, [dailyClosings, sellerId]);
 
     const handleSelectAll = () => {
+        if (isReadOnly) return;
         const selectableSales = availableSales.filter(s => !closedSalesIds.has(s.id));
         if (selectedSalesIds.size === selectableSales.length && selectedInstIds.size === availableInstallments.length) {
             setSelectedSalesIds(new Set());
@@ -166,6 +180,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     };
 
     const toggleSale = (id: string) => {
+        if (isReadOnly) return;
         const newSet = new Set(selectedSalesIds);
         if (newSet.has(id)) newSet.delete(id);
         else newSet.add(id);
@@ -173,6 +188,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     };
 
     const toggleInst = (id: string) => {
+        if (isReadOnly) return;
         const next = new Set(selectedInstIds);
         if (next.has(id)) next.delete(id);
         else next.add(id);
@@ -180,7 +196,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     };
 
     const handleSubmit = async () => {
-        if (selectedSalesIds.size === 0 && selectedInstIds.size === 0) return;
+        if (isReadOnly || (selectedSalesIds.size === 0 && selectedInstIds.size === 0)) return;
         if (hasTermSaleSelected) return;
 
         setIsSubmitting(true);
@@ -296,20 +312,51 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                 {/* Sales Section */}
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">Vendas Recentes</h4>
-                        <button
-                            onClick={handleSelectAll}
-                            className="text-[10px] font-black uppercase text-primary bg-primary/10 px-3 py-1 rounded-lg"
-                        >
-                            {selectedSalesIds.size === availableSales.length ? 'Limpar' : 'Tudo'}
-                        </button>
+                        <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">Transações</h4>
+                        {!isReadOnly && (
+                            <button
+                                onClick={handleSelectAll}
+                                className="text-[10px] font-black uppercase text-primary bg-primary/10 px-3 py-1 rounded-lg"
+                            >
+                                {selectedSalesIds.size === availableSales.length ? 'Limpar' : 'Tudo'}
+                            </button>
+                        )}
                     </div>
 
-                    {availableSales.length === 0 ? (
-                        <p className="text-center py-4 text-xs text-slate-400 italic">Nenhuma venda pendente</p>
+                    {/* Filter Bar */}
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+                        {[
+                            { id: 'all', label: 'Tudo' },
+                            { id: 'received', label: 'Recebido' },
+                            { id: 'pending', label: 'A Receber' }
+                        ].map(f => (
+                            <button
+                                key={f.id}
+                                onClick={() => setActiveFilter(f.id as any)}
+                                className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${
+                                    activeFilter === f.id
+                                        ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                                        : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-100 dark:border-slate-700'
+                                }`}
+                            >
+                                {f.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {availableSales.filter(s => {
+                        if (activeFilter === 'all') return true;
+                        const isTerm = s.paymentMethod === PaymentMethod.TERM;
+                        return activeFilter === 'received' ? !isTerm : isTerm;
+                    }).length === 0 ? (
+                        <p className="text-center py-4 text-xs text-slate-400 italic">Nenhuma venda nesta categoria</p>
                     ) : (
                         <div className="space-y-2">
-                            {availableSales.map(sale => {
+                            {availableSales.filter(s => {
+                                if (activeFilter === 'all') return true;
+                                const isTerm = s.paymentMethod === PaymentMethod.TERM;
+                                return activeFilter === 'received' ? !isTerm : isTerm;
+                            }).map(sale => {
                                 const isSelected = selectedSalesIds.has(sale.id);
                                 const isTerm = sale.paymentMethod === PaymentMethod.TERM;
 
@@ -326,6 +373,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                                     <button
                                         key={sale.id}
                                         onClick={() => toggleSale(sale.id)}
+                                        disabled={isReadOnly}
                                         className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isSelected
                                             ? 'border-primary bg-primary/5 dark:bg-primary/10'
                                             : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'
@@ -382,17 +430,24 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                         <span className="text-[10px] font-bold text-slate-400">{availableInstallments.length} pendentes</span>
                     </div>
 
-                    {availableInstallments.length === 0 ? (
+                    {availableInstallments.filter(i => {
+                        if (activeFilter === 'pending') return false;
+                        return true;
+                    }).length === 0 && (activeFilter === 'received' || activeFilter === 'all') ? (
                         <p className="text-center py-4 text-xs text-slate-400 italic">Nenhuma parcela recebida pendente</p>
                     ) : (
                         <div className="space-y-2">
-                            {availableInstallments.map(inst => {
+                            {availableInstallments.filter(i => {
+                                if (activeFilter === 'pending') return false;
+                                return true;
+                            }).map(inst => {
                                 const isSelected = selectedInstIds.has(inst.id);
                                 const sale = sales.find(s => s.id === inst.saleId);
                                 return (
                                     <button
                                         key={inst.id}
                                         onClick={() => toggleInst(inst.id)}
+                                        disabled={isReadOnly}
                                         className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isSelected
                                             ? 'border-success bg-success/5 dark:bg-success/10'
                                             : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'
@@ -424,6 +479,45 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                             })}
                         </div>
                     )}
+
+                    {/* Pending Installments (Informational) */}
+                    {(activeFilter === 'pending' || activeFilter === 'all') && pendingInstallments.length > 0 && (
+                        <div className="space-y-2 mt-4">
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Parcelas a Receber</h5>
+                            {pendingInstallments.map(inst => {
+                                const sale = sales.find(s => s.id === inst.saleId);
+                                const isOverdue = inst.dueDate < Date.now();
+                                return (
+                                    <div
+                                        key={inst.id}
+                                        className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 opacity-70"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="size-6 rounded-lg border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-300">
+                                                <span className="material-symbols-outlined text-[14px]">schedule</span>
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
+                                                    {sale?.customerName || 'Cliente'}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter ${isOverdue ? 'bg-danger/10 text-danger' : 'bg-slate-200 text-slate-500'}`}>
+                                                        {isOverdue ? 'Atrasado' : 'Pendente'}
+                                                    </span>
+                                                    <span className="text-[9px] text-slate-400 font-bold">
+                                                        Vence {new Date(inst.dueDate).toLocaleDateString('pt-BR')}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="font-black text-sm text-slate-400">
+                                            {formatCurrency(inst.amount)}
+                                        </p>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 {/* Notes */}
@@ -433,6 +527,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                         <textarea
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
+                            disabled={isReadOnly}
                             className="w-full h-24 p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 focus:border-primary focus:ring-0 transition-all resize-none text-sm"
                             placeholder="Algum detalhe importante sobre este acerto?"
                         />
@@ -477,7 +572,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
             </div>
 
             {/* Navigation Bar / Submit Button */}
-            {(selectedSalesIds.size > 0 || selectedInstIds.size > 0) && (
+            {(selectedSalesIds.size > 0 || selectedInstIds.size > 0) && !isReadOnly && (
                 <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-md p-4 animate-in slide-in-from-bottom-10 duration-500 z-50">
                     {hasTermSaleSelected ? (
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-2xl border-2 border-amber-500/20 space-y-4 animate-in zoom-in-95">

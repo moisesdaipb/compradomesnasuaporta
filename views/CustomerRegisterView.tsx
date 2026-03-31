@@ -9,6 +9,7 @@ interface CustomerRegisterViewProps {
     onUpdateCustomer?: (customer: Partial<Customer>) => Promise<void>;
     onSelectCustomer: (customer: Customer) => void;
     setView: (v: ViewState) => void;
+    isReadOnly?: boolean;
 }
 
 const PREDEFINED_TAGS: CustomerTag[] = [
@@ -27,6 +28,7 @@ const CustomerRegisterView: React.FC<CustomerRegisterViewProps> = ({
     onUpdateCustomer,
     onSelectCustomer,
     setView,
+    isReadOnly = false,
 }) => {
     const [mode, setMode] = useState<'search' | 'register' | 'edit' | 'dossier'>('search');
     const [searchQuery, setSearchQuery] = useState('');
@@ -110,10 +112,15 @@ const CustomerRegisterView: React.FC<CustomerRegisterViewProps> = ({
 
     const filteredCustomers = customers.filter(c => {
         const query = searchQuery.toLowerCase();
+        const cleanQuery = searchQuery.replace(/\D/g, '');
+        const cleanCpf = (c.cpf || '').replace(/\D/g, '');
+        
         return (
             (c.name || '').toLowerCase().includes(query) ||
+            (cleanCpf && cleanQuery && cleanCpf.includes(cleanQuery)) ||
             (c.cpf || '').includes(searchQuery) ||
             (c.phone || '').includes(searchQuery) ||
+            (c.phone || '').replace(/\D/g, '').includes(cleanQuery) ||
             (c.email || '').toLowerCase().includes(query) ||
             (c.tags || []).some(t => t.customLabel?.toLowerCase().includes(query))
         );
@@ -179,9 +186,13 @@ const CustomerRegisterView: React.FC<CustomerRegisterViewProps> = ({
                 onSelectCustomer(newCustomer);
                 setView('presential-sale');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Operation failed:', error);
-            alert('Falha ao processar operação. Verifique sua conexão.');
+            if (error.message === 'CPF_ALREADY_EXISTS') {
+                alert('Este CPF já está cadastrado para outro cliente.');
+            } else {
+                alert('Falha ao processar operação. Verifique sua conexão.');
+            }
         } finally {
             setIsRegistering(false);
         }
@@ -360,27 +371,33 @@ const CustomerRegisterView: React.FC<CustomerRegisterViewProps> = ({
                     <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
                         <button
                             onClick={() => setMode('search')}
-                            className={`flex-1 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all ${mode === 'search'
+                            className={`flex-1 py-1.5 rounded-lg font-medium text-xs flex items-center justify-center gap-2 transition-all ${mode === 'search'
                                 ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
                                 : 'text-slate-500'
                                 }`}
                         >
-                            <span className="material-symbols-outlined text-lg">search</span>
+                            <span className="material-symbols-outlined text-sm">search</span>
                             Buscar
                         </button>
-                        <button
-                            onClick={() => {
-                                resetForm();
-                                setMode('register');
-                            }}
-                            className={`flex-1 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all ${mode === 'register'
-                                ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
-                                : 'text-slate-500'
-                                }`}
-                        >
-                            <span className="material-symbols-outlined text-lg">person_add</span>
-                            Cadastrar
-                        </button>
+                        {!isReadOnly && (
+                            <button
+                                onClick={() => {
+                                    setMode('register');
+                                    setEditingCustomer(null);
+                                    setFormData({
+                                        name: '', cpf: '', phone: '', address: '', addressNumber: '',
+                                        complement: '', neighborhood: '', city: '', email: '', tags: []
+                                    });
+                                }}
+                                className={`flex-1 py-1.5 rounded-lg font-medium text-xs flex items-center justify-center gap-2 transition-all ${mode === 'register'
+                                    ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
+                                    : 'text-slate-500'
+                                    }`}
+                            >
+                                <span className="material-symbols-outlined text-sm">person_add</span>
+                                Cadastrar
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
@@ -538,18 +555,20 @@ const CustomerRegisterView: React.FC<CustomerRegisterViewProps> = ({
                                     </div>
 
                                     {/* Action Button inside detailed views */}
-                                    <div className="pt-2 pb-6">
-                                        <button 
-                                            onClick={() => {
-                                                onSelectCustomer(dossierCustomer);
-                                                setView('presential-sale');
-                                            }}
-                                            className="w-full h-14 bg-primary text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:bg-primary/90 transition-transform active:scale-95 shadow-xl shadow-primary/30"
-                                        >
-                                            <span className="material-symbols-outlined">shopping_cart</span>
-                                            Iniciar Nova Venda
-                                        </button>
-                                    </div>
+                                    {!isReadOnly && (
+                                        <div className="pt-2 pb-6">
+                                            <button 
+                                                onClick={() => {
+                                                    onSelectCustomer(dossierCustomer);
+                                                    setView('presential-sale');
+                                                }}
+                                                className="w-full h-14 bg-primary text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:bg-primary/90 transition-transform active:scale-95 shadow-xl shadow-primary/30"
+                                            >
+                                                <span className="material-symbols-outlined">shopping_cart</span>
+                                                Iniciar Nova Venda
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         }
@@ -675,18 +694,20 @@ const CustomerRegisterView: React.FC<CustomerRegisterViewProps> = ({
                                     </>
                                 )}
                                 
-                                <div className="pt-2 pb-10">
-                                    <button 
-                                        onClick={() => {
-                                            onSelectCustomer(dossierCustomer);
-                                            setView('presential-sale');
-                                        }}
-                                        className="w-full h-14 bg-primary text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:bg-primary/90 transition-transform active:scale-95 shadow-xl shadow-primary/30"
-                                    >
-                                        <span className="material-symbols-outlined">shopping_cart</span>
-                                        Iniciar Nova Venda
-                                    </button>
-                                </div>
+                                    {!isReadOnly && (
+                                        <div className="pt-2 pb-10">
+                                            <button 
+                                                onClick={() => {
+                                                    onSelectCustomer(dossierCustomer);
+                                                    setView('presential-sale');
+                                                }}
+                                                className="w-full h-14 bg-primary text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:bg-primary/90 transition-transform active:scale-95 shadow-xl shadow-primary/30"
+                                            >
+                                                <span className="material-symbols-outlined">shopping_cart</span>
+                                                Iniciar Nova Venda
+                                            </button>
+                                        </div>
+                                    )}
                             </div>
                         );
                     })()}
@@ -942,14 +963,19 @@ const CustomerRegisterView: React.FC<CustomerRegisterViewProps> = ({
                 <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-md p-4 glass-morphism border-t border-gray-200 dark:border-gray-800 z-50">
                     <button
                         onClick={handleRegisterOrUpdate}
-                        disabled={!formData.name || !formData.cpf || !formData.phone || !formData.address || !formData.addressNumber || isRegistering}
-                        className={`w-full h-14 font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${formData.name && formData.cpf && formData.phone && formData.address && formData.addressNumber && !isRegistering
+                        disabled={!formData.name || !formData.cpf || !formData.phone || !formData.address || !formData.addressNumber || isRegistering || isReadOnly}
+                        className={`w-full h-14 font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${formData.name && formData.cpf && formData.phone && formData.address && formData.addressNumber && !isRegistering && !isReadOnly
                             ? 'bg-success text-white shadow-lg active:scale-[0.98]'
                             : 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-700 dark:text-slate-500'
                             }`}
                     >
                         {isRegistering ? (
                             <div className="size-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : isReadOnly ? (
+                            <>
+                                <span className="material-symbols-outlined">visibility</span>
+                                Modo de Visualização
+                            </>
                         ) : mode === 'edit' ? (
                             <>
                                 <span className="material-symbols-outlined">save</span>

@@ -49,8 +49,13 @@ const ManagerSalesView: React.FC<ManagerSalesViewProps> = ({
             .filter(s => {
                 // Search filter
                 const query = searchQuery.toLowerCase();
+                const cleanQuery = searchQuery.replace(/\D/g, '');
+                const customer = customers.find(c => c.id === s.customerId);
+                const cleanCpf = (customer?.cpf || '').replace(/\D/g, '');
+                
                 const matchesSearch = (s.customerName || '').toLowerCase().includes(query) ||
-                    (s.id || '').toLowerCase().includes(query);
+                    (s.id || '').toLowerCase().includes(query) ||
+                    (cleanQuery && cleanCpf.includes(cleanQuery));
                 if (!matchesSearch) return false;
 
                 // Status filter

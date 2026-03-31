@@ -10,9 +10,19 @@ interface TeamViewProps {
     onDeleteMember: (id: string) => void;
     setView: (v: ViewState) => void;
     onSelectAuditSeller?: (sellerId: string) => void;
+    onStartImpersonation?: (sellerId: string) => void;
 }
 
-const TeamView: React.FC<TeamViewProps> = ({ team, onAddMember, onUpdateMember, onToggleStatus, onDeleteMember, setView, onSelectAuditSeller }) => {
+const TeamView: React.FC<TeamViewProps> = ({ 
+    team, 
+    onAddMember, 
+    onUpdateMember, 
+    onToggleStatus, 
+    onDeleteMember, 
+    setView, 
+    onSelectAuditSeller,
+    onStartImpersonation
+}) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
@@ -234,7 +244,21 @@ https://cesta-basica-app.vercel.app/register?cpf=${member.cpf.replace(/\D/g, '')
                                         </div>
                                     </div>
 
-                                    <span className="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">chevron_right</span>
+                                    <div className="flex items-center gap-2">
+                                        {member.role === 'vendedor' && onStartImpersonation && member.status === 'ativo' && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onStartImpersonation(member.id);
+                                                }}
+                                                className="size-9 flex items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all active:scale-90"
+                                                title="Acessar como"
+                                            >
+                                                <span className="material-symbols-outlined text-xl">visibility</span>
+                                            </button>
+                                        )}
+                                        <span className="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">chevron_right</span>
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -275,6 +299,19 @@ https://cesta-basica-app.vercel.app/register?cpf=${member.cpf.replace(/\D/g, '')
                                 >
                                     <span className="material-symbols-outlined text-xl">receipt_long</span>
                                     Extrato Detalhado
+                                </button>
+                            )}
+
+                            {selectedMember.role === 'vendedor' && onStartImpersonation && (
+                                <button
+                                    onClick={() => {
+                                        onStartImpersonation(selectedMember.id);
+                                        setSelectedMember(null);
+                                    }}
+                                    className="w-full h-12 bg-amber-50 text-amber-700 dark:bg-amber-900/20 rounded-xl flex items-center gap-3 px-5 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                                >
+                                    <span className="material-symbols-outlined text-xl">visibility</span>
+                                    Acessar Como
                                 </button>
                             )}
 

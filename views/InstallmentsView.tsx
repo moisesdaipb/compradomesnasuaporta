@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ViewState, Installment, InstallmentStatus, PaymentMethod, Sale, OrderStatus } from '../types';
+import { ViewState, Installment, InstallmentStatus, PaymentMethod, Sale, OrderStatus, Customer } from '../types';
 import PartialPaymentModal from '../components/PartialPaymentModal';
 
 interface InstallmentsViewProps {
@@ -8,10 +8,12 @@ interface InstallmentsViewProps {
     userRole: string;
     userId: string;
     sellerId: string;
+    customers: Customer[];
     onPayInstallment: (id: string, paymentMethod: PaymentMethod) => void;
     onUpdateInstallments: (saleId: string, updatedInstallments: any[]) => Promise<void>;
     onRefresh?: () => void;
     setView: (v: ViewState) => void;
+    isReadOnly?: boolean;
 }
 
 const InstallmentsView: React.FC<InstallmentsViewProps> = ({
@@ -20,10 +22,12 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
     userRole,
     userId,
     sellerId,
+    customers,
     onPayInstallment,
     onUpdateInstallments,
     onRefresh,
     setView,
+    isReadOnly = false,
 }) => {
     const [filter, setFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('pending');
     const [searchQuery, setSearchQuery] = useState('');
@@ -56,9 +60,19 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
             if (filter === 'overdue') return i.status === InstallmentStatus.OVERDUE;
             return true;
         })
-        .filter(i =>
-                (i.customerName || '').toLowerCase().includes(searchQuery.toLowerCase())
-        )
+        .filter(i => {
+                const query = searchQuery.toLowerCase();
+                const cleanQuery = searchQuery.replace(/\D/g, '');
+                const customer = customers.find(c => c.id === i.customerId);
+                const cleanCpf = (customer?.cpf || '').replace(/\D/g, '');
+                const cleanPhone = (customer?.phone || '').replace(/\D/g, '');
+
+                return (
+                    (i.customerName || '').toLowerCase().includes(query) ||
+                    (cleanQuery && cleanCpf.includes(cleanQuery)) ||
+                    (cleanQuery && cleanPhone.includes(cleanQuery))
+                );
+        })
         .sort((a, b) => a.dueDate - b.dueDate);
 
     const pendingCount = processedInstallments.filter(i => i.status === InstallmentStatus.PENDING).length;

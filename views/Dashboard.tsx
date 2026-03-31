@@ -628,6 +628,17 @@ const Dashboard: React.FC<DashboardProps> = ({
             </button>
 
             <button
+              onClick={() => setView('installments')}
+              className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 text-left active:scale-[0.98] transition-all"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="material-symbols-outlined text-primary">credit_score</span>
+              </div>
+              <p className="text-2xl font-black">{installments.filter(i => i.status === InstallmentStatus.PENDING).length}</p>
+              <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-tighter">Parcelas Pendentes</p>
+            </button>
+
+            <button
               onClick={() => setView('sales-list')}
               className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 text-left active:scale-[0.98] transition-all"
             >

@@ -10,6 +10,8 @@ interface LayoutProps {
   cartCount?: number;
   deliveryCount?: number;
   settings?: AppSettings;
+  isReadOnly?: boolean;
+  onExitImpersonation?: () => void;
 }
 
 // Configuração de menu por role
@@ -29,6 +31,7 @@ const getMenuItems = (role: UserRole): { icon: string; label: string; view: View
         { icon: 'query_stats', label: 'Insights', view: 'analytics' },
         { icon: 'ads_click', label: 'Metas', view: 'settings' },
         { icon: 'category', label: 'Modelos', view: 'basket-models' },
+        { icon: 'credit_score', label: 'Parcelado', view: 'installments' },
         { icon: 'calendar_month', label: 'Gestão de Cobrança', view: 'receivables' },
         { icon: 'list_alt', label: 'Vendas', view: 'sales-list' },
         { icon: 'settings', label: 'Configurações', view: 'app-config', isBottom: true },
@@ -107,6 +110,8 @@ const Layout: React.FC<LayoutProps> = ({
   cartCount = 0,
   deliveryCount = 0,
   settings,
+  isReadOnly = false,
+  onExitImpersonation,
 }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const menuItems = getMenuItems(user.role);
@@ -115,6 +120,24 @@ const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div className={`flex flex-col h-screen bg-[#E2E8F0] dark:bg-slate-950 text-slate-900 dark:text-white ${currentView === 'analytics' ? 'max-w-[1280px]' : 'max-w-md'} mx-auto relative overflow-hidden shadow-2xl transition-all duration-500`}>
+      {/* Impersonation Banner */}
+      {isReadOnly && (
+        <div className="bg-amber-500 dark:bg-amber-600 px-4 py-2 flex items-center justify-between text-white z-[100] animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm">visibility</span>
+            <p className="text-[10px] font-black uppercase tracking-widest leading-none">
+              Visualizando como {user.name}
+            </p>
+          </div>
+          <button 
+            onClick={onExitImpersonation}
+            className="bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest transition-colors backdrop-blur-sm border border-white/20"
+          >
+            Sair
+          </button>
+        </div>
+      )}
+
       {/* Top Header */}
       <header className="flex-shrink-0 px-4 pt-4 pb-2 space-y-4">
         {/* Row 1: App Name (Clickable for Home) - Hidden on BI View for Space */}
