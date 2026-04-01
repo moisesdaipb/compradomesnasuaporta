@@ -27,6 +27,7 @@ import {
   GoalType,
   GoalPeriod,
   LoginLog,
+  AuditLog,
 } from './types';
 import { APP_STORAGE_KEY, SESSION_STORAGE_KEY, BASKET_IMAGES, AVATAR_IMAGES, DEFAULT_LOCATION } from './constants';
 import { supabase } from './supabase';
@@ -55,7 +56,8 @@ const INITIAL_DATA: AppData = {
     appLogo: 'shopping_basket',
     logoType: 'icon'
   },
-  loginLogs: []
+  loginLogs: [],
+  auditLogs: []
 };
 
 // ============================================
@@ -80,6 +82,7 @@ export const loadData = (): AppData => {
         goals: data.goals || [],
         settings: data.settings || INITIAL_DATA.settings,
         loginLogs: data.loginLogs || [],
+        auditLogs: data.auditLogs || [],
       };
     } catch (e) {
       console.error('Failed to parse storage', e);
@@ -1004,6 +1007,19 @@ export const payInstallment = async (id: string, paymentMethod: PaymentMethod) =
   if (error) throw error;
 };
 
+export const undoPayInstallment = async (id: string) => {
+  const { error } = await supabase
+    .from('installments')
+    .update({
+      status: InstallmentStatus.PENDING,
+      payment_method: null,
+      paid_at: null
+    })
+    .eq('id', id);
+
+  if (error) throw error;
+};
+
 export const createDailyClosing = async (closing: DailyClosing) => {
   console.log('[store] createDailyClosing started', closing);
 
@@ -1445,6 +1461,57 @@ export const fetchLoginLogs = async (): Promise<LoginLog[]> => {
     user_id: row.user_id,
     email: row.email,
     user_agent: row.user_agent,
+    created_at: row.created_at
+  }));
+};
+
+export const updateSalePaymentMethod = async (saleId: string, paymentMethod: PaymentMethod): Promise<boolean> => {
+  const { error } = await supabase
+    .from('sales')
+    .update({ payment_method: paymentMethod })
+    .eq('id', saleId);
+
+  if (error) {
+    console.error('[store] updateSalePaymentMethod failed:', error);
+    return false;
+  }
+  return true;
+};
+
+export const updateInstallmentPaymentMethod = async (instId: string, paymentMethod: PaymentMethod): Promise<boolean> => {
+  const { error } = await supabase
+    .from('installments')
+    .update({ payment_method: paymentMethod })
+    .eq('id', instId);
+
+  if (error) {
+    console.error('[store] updateInstallmentPaymentMethod failed:', error);
+    return false;
+  }
+  return true;
+};
+
+export const fetchAuditLogs = async (): Promise<AuditLog[]> => {
+  const { data, error } = await supabase
+    .from('audit_logs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('fetchAuditLogs failed:', error);
+    return [];
+  }
+  return (data || []).map(row => ({
+    id: row.id,
     created_at: row.created_at,
+    user_id: row.user_id,
+    user_name: row.user_name,
+    user_role: row.user_role,
+    table_name: row.table_name,
+    record_id: row.record_id,
+    action: row.action,
+    old_data: row.old_data,
+    new_data: row.new_data,
   }));
 };

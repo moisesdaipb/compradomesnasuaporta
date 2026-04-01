@@ -1,13 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { ViewState, Installment, InstallmentStatus, Sale, OrderStatus, Customer, PaymentMethod } from '../types';
+import { ViewState, Installment, InstallmentStatus, Sale, OrderStatus, Customer, PaymentMethod, DailyClosing } from '../types';
 import { formatCurrency } from '../utils';
 
 interface ReceivablesViewProps {
     installments: Installment[];
     sales: Sale[];
     customers: Customer[];
+    dailyClosings: DailyClosing[];
     userRole: string;
     userId: string;
+    onUndoPayInstallment?: (id: string) => void;
     onRefresh?: () => void;
     setView: (v: ViewState) => void;
 }
@@ -16,8 +18,10 @@ const ReceivablesView: React.FC<ReceivablesViewProps> = ({
     installments,
     sales,
     customers,
+    dailyClosings,
     userRole,
     userId,
+    onUndoPayInstallment,
     onRefresh,
     setView,
 }) => {
@@ -372,7 +376,23 @@ const ReceivablesView: React.FC<ReceivablesViewProps> = ({
                                                 <p className="text-[10px] text-slate-400 font-bold">{new Date(i.dueDate).toLocaleDateString('pt-BR')}</p>
                                             </div>
                                             <div className="flex items-center gap-3">
-                                                <span className="text-xs font-black text-slate-700 dark:text-slate-200">{formatCurrency(i.amount)}</span>
+                                                <div className="text-right flex flex-col items-end">
+                                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">{formatCurrency(i.amount)}</span>
+                                                    {i.status === InstallmentStatus.PAID && onUndoPayInstallment && !dailyClosings.some(c => c.installmentIds?.includes(i.id) && (c.status === 'Pendente' || c.status === 'Aprovado')) && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (window.confirm('Tem certeza que deseja estornar este pagamento?')) {
+                                                                    onUndoPayInstallment(i.id);
+                                                                }
+                                                            }}
+                                                            className="text-[8px] font-bold text-slate-400 hover:text-danger mt-0.5 flex items-center gap-0.5"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[10px]">undo</span>
+                                                            Estornar
+                                                        </button>
+                                                    )}
+                                                </div>
                                                 <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
                                                     i.status === InstallmentStatus.PAID ? 'bg-success/10 text-success' : 'bg-slate-200 text-slate-500'
                                                 }`}>

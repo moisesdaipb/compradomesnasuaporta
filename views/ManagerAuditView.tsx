@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Sale, Installment, DailyClosing, TeamMember, PaymentMethod, OrderStatus } from '../types';
+import { Sale, Installment, DailyClosing, TeamMember, PaymentMethod, OrderStatus, AuditLog } from '../types';
 import { formatCurrency } from '../utils';
 import * as XLSX from 'xlsx';
 
@@ -8,10 +8,11 @@ interface ManagerAuditViewProps {
   installments: Installment[];
   dailyClosings: DailyClosing[];
   team: TeamMember[];
+  auditLogs: AuditLog[];
   onBack: () => void;
 }
 
-type TabType = 'A Prestar Contas' | 'Em Atraso' | 'A Receber' | 'Confirmados' | 'Tudo';
+type TabType = 'A Prestar Contas' | 'Em Atraso' | 'A Receber' | 'Confirmados' | 'Log de Ações' | 'Tudo';
 
 interface AuditRow {
   id: string;
@@ -34,6 +35,7 @@ const ManagerAuditView: React.FC<ManagerAuditViewProps> = ({
   installments,
   dailyClosings,
   team,
+  auditLogs,
   onBack
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('A Prestar Contas');
@@ -153,6 +155,26 @@ const ManagerAuditView: React.FC<ManagerAuditViewProps> = ({
     return result;
   }, [allRows, activeTab, searchTerm, selectedSeller, todayStart]);
 
+  const filteredAuditLogs = useMemo(() => {
+    if (activeTab !== 'Log de Ações') return [];
+    let logs = auditLogs;
+
+    if (selectedSeller !== 'all') {
+      logs = logs.filter(l => l.user_id === selectedSeller);
+    }
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      logs = logs.filter(l => 
+        (l.user_name || '').toLowerCase().includes(term) ||
+        (l.table_name || '').toLowerCase().includes(term) ||
+        (l.action || '').toLowerCase().includes(term)
+      );
+    }
+
+    return logs;
+  }, [auditLogs, activeTab, searchTerm, selectedSeller]);
+
   // Render Helpers
   const getStatusString = (r: AuditRow) => {
     if (r.isAccounted) return 'Fechado/Confirmado';
@@ -260,7 +282,7 @@ const ManagerAuditView: React.FC<ManagerAuditViewProps> = ({
       {/* Tabs */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 pt-1 pb-3 shadow-sm">
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide snap-x">
-          {(['A Prestar Contas', 'Em Atraso', 'A Receber', 'Confirmados', 'Tudo'] as TabType[]).map(tab => (
+          {(['A Prestar Contas', 'Em Atraso', 'A Receber', 'Confirmados', 'Log de Ações', 'Tudo'] as TabType[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -270,6 +292,7 @@ const ManagerAuditView: React.FC<ManagerAuditViewProps> = ({
                     tab === 'Em Atraso' ? 'bg-red-100 border-red-200 text-red-700 shadow-sm' :
                     tab === 'A Receber' ? 'bg-orange-100 border-orange-200 text-orange-700 shadow-sm' :
                     tab === 'Confirmados' ? 'bg-green-100 border-green-200 text-green-700 shadow-sm' :
+                    tab === 'Log de Ações' ? 'bg-purple-100 border-purple-200 text-purple-700 shadow-sm' :
                     'bg-slate-800 border-slate-800 text-white shadow-sm'
                   : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
@@ -281,107 +304,190 @@ const ManagerAuditView: React.FC<ManagerAuditViewProps> = ({
       </div>
 
       <div className="px-4 py-3 bg-slate-100 dark:bg-slate-800/50 flex items-center justify-between border-b border-slate-200 dark:border-slate-700/50">
-         <span className="text-xs font-bold text-slate-500">{filteredRows.length} registros encontrados</span>
-         <span className="text-sm font-black text-slate-800 dark:text-white">Total: {formatCurrency(totalFilteredAmount)}</span>
+         <span className="text-xs font-bold text-slate-500">
+           {activeTab === 'Log de Ações' ? filteredAuditLogs.length : filteredRows.length} registros encontrados
+         </span>
+         {activeTab !== 'Log de Ações' && (
+           <span className="text-sm font-black text-slate-800 dark:text-white">Total: {formatCurrency(totalFilteredAmount)}</span>
+         )}
       </div>
 
       {/* Data Table / List */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 no-scrollbar pb-24">
-        {filteredRows.length === 0 ? (
-          <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
-            <div className="size-20 bg-slate-50 dark:bg-slate-900 rounded-[20px] flex items-center justify-center mx-auto mb-5 border border-slate-100 dark:border-slate-800">
-              <span className="material-symbols-outlined text-slate-300 text-4xl">inventory_2</span>
-            </div>
-            <h3 className="text-lg font-black text-slate-800 dark:text-white mb-1">Nenhum registro</h3>
-            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Altere os filtros ou a aba</p>
+        {activeTab === 'Log de Ações' ? (
+          <div className="space-y-4">
+            {filteredAuditLogs.length === 0 ? (
+              <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                <div className="size-20 bg-slate-50 dark:bg-slate-900 rounded-[20px] flex items-center justify-center mx-auto mb-5 border border-slate-100 dark:border-slate-800">
+                  <span className="material-symbols-outlined text-slate-300 text-4xl">history</span>
+                </div>
+                <h3 className="text-lg font-black text-slate-800 dark:text-white mb-1">Nenhuma ação registrada</h3>
+                <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">As ações aparecerão aqui assim que ocorrerem mudanças no sistema</p>
+              </div>
+            ) : (
+              filteredAuditLogs.map(log => (
+                <div key={log.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`size-10 rounded-xl flex items-center justify-center ${
+                        log.action === 'INSERT' ? 'bg-green-100 text-green-600' :
+                        log.action === 'UPDATE' ? 'bg-blue-100 text-blue-600' :
+                        'bg-red-100 text-red-600'
+                      }`}>
+                        <span className="material-symbols-outlined text-xl">
+                          {log.action === 'INSERT' ? 'add_circle' : log.action === 'UPDATE' ? 'edit' : 'delete'}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter">
+                          {log.action === 'INSERT' ? 'Inserção' : log.action === 'UPDATE' ? 'Alteração' : 'Exclusão'} em <span className="text-primary">{log.table_name}</span>
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-400 capitalize">
+                          {new Date(log.created_at).toLocaleString('pt-BR')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">
+                        {log.user_name || 'Sistema'}
+                      </p>
+                      <p className={`text-[8px] font-bold uppercase tracking-widest ${
+                        log.user_role === 'gerente' ? 'text-primary' : 'text-slate-400'
+                      }`}>
+                        {log.user_role || 'Auto'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {log.action === 'UPDATE' && log.old_data && log.new_data && (
+                    <div className="mt-3 overflow-hidden rounded-xl border border-slate-100 dark:border-slate-700">
+                      <div className="grid grid-cols-2 bg-slate-50 dark:bg-slate-800/50 p-2 text-[9px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                        <div>Valor Antigo</div>
+                        <div>Valor Novo</div>
+                      </div>
+                      <div className="grid grid-cols-2 p-2 gap-4 text-[10px] font-semibold font-mono break-all line-clamp-3">
+                        <div className="text-red-500 opacity-60">
+                          {Object.entries(log.old_data)
+                            .filter(([key, val]) => JSON.stringify(val) !== JSON.stringify(log.new_data[key]))
+                            .map(([key, val]) => `${key}: ${JSON.stringify(val)}`).join('\n')}
+                        </div>
+                        <div className="text-green-600">
+                          {Object.entries(log.new_data)
+                            .filter(([key, val]) => JSON.stringify(val) !== JSON.stringify(log.old_data[key]))
+                            .map(([key, val]) => `${key}: ${JSON.stringify(val)}`).join('\n')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {(log.action === 'INSERT' || log.action === 'DELETE') && (
+                    <div className="mt-3 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-[10px] font-mono break-all line-clamp-2 opacity-60">
+                      {JSON.stringify(log.action === 'INSERT' ? log.new_data : log.old_data)}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         ) : (
-          <div className="hidden md:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-             {/* Desktop Table View */}
-             <table className="w-full text-left border-collapse">
-                <thead>
-                   <tr className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-200 dark:border-slate-700">
-                      <th className="p-4">Cliente</th>
-                      <th className="p-4">Vendedor</th>
-                      <th className="p-4">Tipo</th>
-                      <th className="p-4">Data/Venc.</th>
-                      <th className="p-4">Status</th>
-                      <th className="p-4 text-right">Valor</th>
-                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                   {filteredRows.map(row => (
-                      <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                         <td className="p-4 font-bold text-sm text-slate-800 dark:text-white">{row.customerName}</td>
-                         <td className="p-4">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 text-primary text-xs font-bold">
-                               <span className="material-symbols-outlined text-[12px]">storefront</span>
-                               {row.sellerName}
-                            </span>
-                         </td>
-                         <td className="p-4 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                            {row.type} {row.details && <span className="opacity-70">({row.details})</span>}
-                         </td>
-                         <td className="p-4 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                            {new Date(row.date).toLocaleDateString('pt-BR')}
-                         </td>
-                         <td className="p-4">
-                            {getStatusBadge(row)}
-                         </td>
-                         <td className="p-4 text-right font-black text-sm text-slate-800 dark:text-white">
-                            {formatCurrency(row.amount)}
-                         </td>
-                      </tr>
-                   ))}
-                </tbody>
-             </table>
-          </div>
-        )}
+          <>
+            {filteredRows.length === 0 ? (
+              <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                <div className="size-20 bg-slate-50 dark:bg-slate-900 rounded-[20px] flex items-center justify-center mx-auto mb-5 border border-slate-100 dark:border-slate-800">
+                  <span className="material-symbols-outlined text-slate-300 text-4xl">inventory_2</span>
+                </div>
+                <h3 className="text-lg font-black text-slate-800 dark:text-white mb-1">Nenhum registro</h3>
+                <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Altere os filtros ou a aba</p>
+              </div>
+            ) : (
+              <div className="hidden md:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                 {/* Desktop Table View */}
+                 <table className="w-full text-left border-collapse">
+                    <thead>
+                       <tr className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-200 dark:border-slate-700">
+                          <th className="p-4">Cliente</th>
+                          <th className="p-4">Vendedor</th>
+                          <th className="p-4">Tipo</th>
+                          <th className="p-4">Data/Venc.</th>
+                          <th className="p-4">Status</th>
+                          <th className="p-4 text-right">Valor</th>
+                       </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                       {filteredRows.map(row => (
+                          <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                             <td className="p-4 font-bold text-sm text-slate-800 dark:text-white">{row.customerName}</td>
+                             <td className="p-4">
+                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 text-primary text-xs font-bold">
+                                   <span className="material-symbols-outlined text-[12px]">storefront</span>
+                                   {row.sellerName}
+                                </span>
+                             </td>
+                             <td className="p-4 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                {row.type} {row.details && <span className="opacity-70">({row.details})</span>}
+                             </td>
+                             <td className="p-4 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                {new Date(row.date).toLocaleDateString('pt-BR')}
+                             </td>
+                             <td className="p-4">
+                                {getStatusBadge(row)}
+                             </td>
+                             <td className="p-4 text-right font-black text-sm text-slate-800 dark:text-white">
+                                {formatCurrency(row.amount)}
+                             </td>
+                          </tr>
+                       ))}
+                    </tbody>
+                 </table>
+              </div>
+            )}
 
-        {/* Mobile View */}
-        <div className="md:hidden space-y-3">
-           {filteredRows.map(row => (
-             <div key={row.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-               <div className="flex items-start justify-between mb-2">
-                 <div className="flex-1 min-w-0 pr-3">
-                   <p className="font-extrabold text-sm text-slate-900 dark:text-white truncate">{row.customerName}</p>
-                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1 mt-0.5">
-                      <span className="material-symbols-outlined text-[10px]">storefront</span>
-                      {row.sellerName}
-                   </p>
+            {/* Mobile View */}
+            <div className="md:hidden space-y-3">
+               {filteredRows.map(row => (
+                 <div key={row.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+                   <div className="flex items-start justify-between mb-2">
+                     <div className="flex-1 min-w-0 pr-3">
+                       <p className="font-extrabold text-sm text-slate-900 dark:text-white truncate">{row.customerName}</p>
+                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1 mt-0.5">
+                          <span className="material-symbols-outlined text-[10px]">storefront</span>
+                          {row.sellerName}
+                       </p>
+                     </div>
+                     {getStatusBadge(row)}
+                   </div>
+                   
+                   <div className="grid grid-cols-2 gap-2 mb-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2.5">
+                      <div>
+                         <p className="text-[9px] text-slate-400 font-bold uppercase">Tipo Venda</p>
+                         <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{row.type} {row.details && `(${row.details})`}</p>
+                      </div>
+                      <div>
+                         <p className="text-[9px] text-slate-400 font-bold uppercase">Data/Vencimento</p>
+                         <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{new Date(row.date).toLocaleDateString('pt-BR')}</p>
+                      </div>
+                   </div>
+                   
+                   <div className="flex justify-between items-center border-t border-slate-100 dark:border-slate-800 pt-3">
+                      <div className="flex items-center gap-2">
+                         {row.phone && (
+                            <a 
+                               href={`https://wa.me/55${row.phone.replace(/\D/g, '')}?text=Olá! Sobre a ${row.type.toLowerCase()}...`}
+                               target="_blank"
+                               rel="noreferrer"
+                               className="size-8 bg-green-50 text-green-600 rounded-full flex items-center justify-center hover:bg-green-100 transition-colors"
+                            >
+                               <i className="fa-brands fa-whatsapp"></i>
+                            </a>
+                         )}
+                      </div>
+                      <p className="font-black text-lg text-primary">{formatCurrency(row.amount)}</p>
+                   </div>
                  </div>
-                 {getStatusBadge(row)}
-               </div>
-               
-               <div className="grid grid-cols-2 gap-2 mb-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2.5">
-                  <div>
-                     <p className="text-[9px] text-slate-400 font-bold uppercase">Tipo Venda</p>
-                     <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{row.type} {row.details && `(${row.details})`}</p>
-                  </div>
-                  <div>
-                     <p className="text-[9px] text-slate-400 font-bold uppercase">Data/Vencimento</p>
-                     <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{new Date(row.date).toLocaleDateString('pt-BR')}</p>
-                  </div>
-               </div>
-               
-               <div className="flex justify-between items-center border-t border-slate-100 dark:border-slate-800 pt-3">
-                  <div className="flex items-center gap-2">
-                     {row.phone && (
-                        <a 
-                           href={`https://wa.me/55${row.phone.replace(/\D/g, '')}?text=Olá! Sobre a ${row.type.toLowerCase()}...`}
-                           target="_blank"
-                           rel="noreferrer"
-                           className="size-8 bg-green-50 text-green-600 rounded-full flex items-center justify-center hover:bg-green-100 transition-colors"
-                        >
-                           <i className="fa-brands fa-whatsapp"></i>
-                        </a>
-                     )}
-                  </div>
-                  <p className="font-black text-lg text-primary">{formatCurrency(row.amount)}</p>
-               </div>
-             </div>
-           ))}
-        </div>
+               ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

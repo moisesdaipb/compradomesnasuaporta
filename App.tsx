@@ -21,6 +21,7 @@ import {
   UserRole,
   SaleGoal,
   AppSettings,
+  AuditLog,
 } from './types';
 import {
   loadData,
@@ -44,6 +45,7 @@ import {
   createSaleInDb,
   updateCompleteSale,
   payInstallment,
+  undoPayInstallment,
   upsertBasketModel,
   updateProfileStatus,
   updateProfile,
@@ -68,6 +70,9 @@ import {
   checkProfileConflict,
   upsertCustomerProfile,
   fetchLoginLogs,
+  fetchAuditLogs,
+  updateSalePaymentMethod,
+  updateInstallmentPaymentMethod,
 } from './store';
 import { supabase } from './supabase';
 import { formatCurrency, validateCPF, isValidEmail } from './utils';
@@ -106,6 +111,7 @@ import ManagerAuditView from './views/ManagerAuditView';
 
 interface AppState extends AppData {
   allUsers: any[];
+  auditLogs: AuditLog[];
 }
 
 const App: React.FC = () => {
@@ -169,6 +175,7 @@ const App: React.FC = () => {
       settings: local.settings || { appName: 'Cesta Básica Na Sua Casa' },
       allUsers: [],
       loginLogs: [],
+      auditLogs: [],
     };
   });
 
@@ -243,6 +250,7 @@ const App: React.FC = () => {
         (isManager ? fetchGoals() : Promise.resolve([])).catch(err => { console.error('fetchGoals failed:', err); return []; }),
         fetchSettings().catch(err => { console.error('fetchSettings failed:', err); return { appName: 'Cesta Básica Na Sua Casa' }; }),
         (isManager ? fetchLoginLogs() : Promise.resolve([])).catch(err => { console.error('fetchLoginLogs failed:', err); return []; }),
+        (isManager ? fetchAuditLogs() : Promise.resolve([])).catch(err => { console.error('fetchAuditLogs failed:', err); return []; }),
       ]);
 
       // If aborted while fetching, don't update state
@@ -251,7 +259,7 @@ const App: React.FC = () => {
         return;
       }
 
-      const [baskets, customers, team, sales, deliveries, closings, stockEntries, stockSummary, allUsers, installments, goals, settings, loginLogs] = results;
+      const [baskets, customers, team, sales, deliveries, closings, stockEntries, stockSummary, allUsers, installments, goals, settings, loginLogs, auditLogs] = results;
       console.log(`[App] Data fetched in ${Date.now() - fetchStart}ms`);
 
       setAppData(prev => {
@@ -293,6 +301,7 @@ const App: React.FC = () => {
           goals,
           settings,
           loginLogs,
+          auditLogs,
         };
       });
     } catch (error: any) {
@@ -1342,6 +1351,16 @@ const App: React.FC = () => {
     }
   }, [triggerRefresh]);
 
+  const handleUndoPayInstallment = useCallback(async (id: string) => {
+    try {
+      await undoPayInstallment(id);
+      triggerRefresh(100);
+    } catch (error) {
+      console.error('Error undoing payment:', error);
+      alert('Erro ao estornar pagamento. Por favor, verifique sua conexão.');
+    }
+  }, [triggerRefresh]);
+
   const handleUpdateGoals = useCallback(async (goals: (Omit<SaleGoal, 'id' | 'updatedAt'> & { id?: string })[]) => {
     try {
       const updatedGoals = await upsertGoals(goals, session?.access_token);
@@ -1536,6 +1555,24 @@ const App: React.FC = () => {
     } catch (e) {
       console.error('Error updating user role:', e);
       throw e;
+    }
+  }, [triggerRefresh]);
+
+  const handleUpdateSalePaymentMethod = useCallback(async (saleId: string, method: PaymentMethod) => {
+    try {
+      const success = await updateSalePaymentMethod(saleId, method);
+      if (success) triggerRefresh(100);
+    } catch (e) {
+      console.error('Error updating sale payment method:', e);
+    }
+  }, [triggerRefresh]);
+
+  const handleUpdateInstallmentPaymentMethod = useCallback(async (instId: string, method: PaymentMethod) => {
+    try {
+      const success = await updateInstallmentPaymentMethod(instId, method);
+      if (success) triggerRefresh(100);
+    } catch (e) {
+      console.error('Error updating installment payment method:', e);
     }
   }, [triggerRefresh]);
 
@@ -1826,10 +1863,12 @@ const App: React.FC = () => {
             installments={appData.installments}
             sales={appData.sales}
             customers={appData.customers}
+            dailyClosings={appData.dailyClosings}
             userRole={user?.role || 'cliente'}
             userId={user?.id || ''}
             sellerId={user?.id || ''}
             onPayInstallment={handlePayInstallment}
+            onUndoPayInstallment={handleUndoPayInstallment}
             onUpdateInstallments={handleUpdateInstallments}
             onRefresh={() => triggerRefresh(100)}
             setView={setView}
@@ -1847,6 +1886,8 @@ const App: React.FC = () => {
             sellerId={user.id}
             sellerName={user.name}
             onCreateClosing={handleCreateClosing}
+            onUpdateSalePaymentMethod={handleUpdateSalePaymentMethod}
+            onUpdateInstallmentPaymentMethod={handleUpdateInstallmentPaymentMethod}
             setView={setView}
             isReadOnly={isReadOnly}
           />
@@ -1862,6 +1903,8 @@ const App: React.FC = () => {
             dailyClosings={appData.dailyClosings}
             onApproveClosing={handleApproveClosing}
             onRejectClosing={handleRejectClosing}
+            onUpdateSalePaymentMethod={handleUpdateSalePaymentMethod}
+            onUpdateInstallmentPaymentMethod={handleUpdateInstallmentPaymentMethod}
             setView={setView}
             onSelectAuditSeller={setSelectedAuditSellerId}
           />
@@ -1898,8 +1941,10 @@ const App: React.FC = () => {
             installments={appData.installments}
             sales={appData.sales}
             customers={appData.customers}
+            dailyClosings={appData.dailyClosings}
             userRole={user?.role || 'cliente'}
             userId={user?.id || ''}
+            onUndoPayInstallment={handleUndoPayInstallment}
             onRefresh={() => triggerRefresh(100)}
             setView={setView}
           />
@@ -2012,6 +2057,7 @@ const App: React.FC = () => {
             installments={appData.installments}
             dailyClosings={appData.dailyClosings}
             team={appData.team}
+            auditLogs={appData.auditLogs}
             onBack={() => setView('dashboard')}
           />
         );

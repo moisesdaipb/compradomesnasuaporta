@@ -11,6 +11,8 @@ interface DailyClosingViewProps {
     sellerId: string;
     sellerName: string;
     onCreateClosing: (closing: DailyClosing) => void;
+    onUpdateSalePaymentMethod: (id: string, method: PaymentMethod) => void;
+    onUpdateInstallmentPaymentMethod: (id: string, method: PaymentMethod) => void;
     setView: (v: ViewState) => void;
     isReadOnly?: boolean;
 }
@@ -23,6 +25,8 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     sellerId,
     sellerName,
     onCreateClosing,
+    onUpdateSalePaymentMethod,
+    onUpdateInstallmentPaymentMethod,
     setView,
     isReadOnly = false,
 }) => {
@@ -169,13 +173,28 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
 
     const handleSelectAll = () => {
         if (isReadOnly) return;
-        const selectableSales = availableSales.filter(s => !closedSalesIds.has(s.id));
-        if (selectedSalesIds.size === selectableSales.length && selectedInstIds.size === availableInstallments.length) {
+        
+        // Only select what's visible in the current filter
+        const visibleSales = availableSales.filter(s => {
+            if (activeFilter === 'all') return !closedSalesIds.has(s.id);
+            const isTerm = s.paymentMethod === PaymentMethod.TERM;
+            const matchesFilter = activeFilter === 'received' ? !isTerm : isTerm;
+            return matchesFilter && !closedSalesIds.has(s.id);
+        });
+
+        const isCurrentlyAllSelected = (selectedSalesIds.size === visibleSales.length && selectedInstIds.size === availableInstallments.length);
+
+        if (isCurrentlyAllSelected) {
             setSelectedSalesIds(new Set());
             setSelectedInstIds(new Set());
         } else {
-            setSelectedSalesIds(new Set(selectableSales.map(s => s.id)));
-            setSelectedInstIds(new Set(availableInstallments.map(i => i.id)));
+            setSelectedSalesIds(new Set(visibleSales.map(s => s.id)));
+            // Only select installments if they are visible (received or all)
+            if (activeFilter !== 'pending') {
+                setSelectedInstIds(new Set(availableInstallments.map(i => i.id)));
+            } else {
+                setSelectedInstIds(new Set());
+            }
         }
     };
 
@@ -198,35 +217,39 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     const handleSubmit = async () => {
         if (isReadOnly || (selectedSalesIds.size === 0 && selectedInstIds.size === 0)) return;
         if (hasTermSaleSelected) return;
-
         setIsSubmitting(true);
         try {
+            const closingId = generateId();
             const closing: DailyClosing = {
-                id: '', // Store will generate
+                id: closingId,
                 sellerId,
                 sellerName,
                 closingDate: Date.now(),
-                cashAmount: totals.cash,
-                cardAmount: totals.card,
                 pixAmount: totals.pix,
+                cardAmount: totals.card,
+                cashAmount: totals.cash,
                 installmentAmount: totals.selectedPendingTerm,
                 receipts: [],
-                salesIds: Array.from(selectedSalesIds).filter(id => !closedSalesIds.has(id)) as string[],
+                salesIds: Array.from(selectedSalesIds),
                 installmentIds: Array.from(selectedInstIds),
                 status: ClosingStatus.PENDING,
-                notes: notes.trim() || undefined
+                notes: notes.trim()
             };
-
             await onCreateClosing(closing);
             setSelectedSalesIds(new Set());
             setSelectedInstIds(new Set());
             setNotes('');
-            setIsConfirming(false);
-        } catch (error) {
-            console.error('Error submitting closing:', error);
+        } catch (e) {
+            console.error('Error creating closing:', e);
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const cyclePaymentMethod = (current: PaymentMethod): PaymentMethod => {
+        if (current === PaymentMethod.PIX) return PaymentMethod.CASH;
+        if (current === PaymentMethod.CASH) return PaymentMethod.CARD;
+        return PaymentMethod.PIX;
     };
 
     // Previous closings
@@ -387,9 +410,21 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                                             <div className="text-left">
                                                 <p className={`text-sm font-black ${isSelected ? 'text-primary' : 'text-slate-700 dark:text-slate-200'}`}>{sale.customerName}</p>
                                                 <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                                                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter ${isTerm ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800'}`}>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (isReadOnly) return;
+                                                            onUpdateSalePaymentMethod(sale.id, cyclePaymentMethod(sale.paymentMethod));
+                                                        }}
+                                                        className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter flex items-center gap-1 transition-colors ${
+                                                            isTerm ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 
+                                                            'bg-slate-100 text-slate-500 dark:bg-slate-800 hover:bg-primary/10 hover:text-primary cursor-pointer'
+                                                        }`}
+                                                        title={isTerm ? "Venda a Prazo" : "Clique para mudar a forma de pagamento"}
+                                                    >
                                                         {sale.paymentMethod}
-                                                    </span>
+                                                        {!isTerm && !isReadOnly && <span className="material-symbols-outlined text-[10px]">sync</span>}
+                                                    </button>
                                                     <span className="text-[9px] text-slate-400 font-bold">
                                                         {new Date(sale.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} {new Date(sale.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
@@ -465,6 +500,19 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                                                     <span className="text-[9px] px-1.5 py-0.5 bg-success/10 text-success rounded font-black uppercase tracking-tighter">
                                                         PARCELA PAGA
                                                     </span>
+                                                    <button
+                                                       onClick={(e) => {
+                                                           e.stopPropagation();
+                                                           if (isReadOnly) return;
+                                                           const currentMethod = inst.paymentMethod || PaymentMethod.ON_DELIVERY;
+                                                           onUpdateInstallmentPaymentMethod(inst.id, cyclePaymentMethod(currentMethod as PaymentMethod));
+                                                       }}
+                                                       className="text-[9px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-primary/10 hover:text-primary rounded font-black uppercase tracking-widest flex items-center gap-1 transition-colors"
+                                                       title="Mudar forma de pagamento"
+                                                    >
+                                                       {inst.paymentMethod || 'Dinheiro'}
+                                                       {!isReadOnly && <span className="material-symbols-outlined text-[10px]">sync</span>}
+                                                    </button>
                                                     <span className="text-[9px] text-slate-400 font-bold">
                                                         {inst.paidAt ? new Date(inst.paidAt).toLocaleDateString('pt-BR') : ''}
                                                     </span>

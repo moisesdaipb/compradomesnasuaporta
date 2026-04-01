@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ViewState, Installment, InstallmentStatus, PaymentMethod, Sale, OrderStatus, Customer } from '../types';
+import { ViewState, Installment, InstallmentStatus, PaymentMethod, Sale, OrderStatus, Customer, DailyClosing } from '../types';
 import PartialPaymentModal from '../components/PartialPaymentModal';
 
 interface InstallmentsViewProps {
@@ -9,7 +9,9 @@ interface InstallmentsViewProps {
     userId: string;
     sellerId: string;
     customers: Customer[];
+    dailyClosings: DailyClosing[];
     onPayInstallment: (id: string, paymentMethod: PaymentMethod) => void;
+    onUndoPayInstallment: (id: string) => void;
     onUpdateInstallments: (saleId: string, updatedInstallments: any[]) => Promise<void>;
     onRefresh?: () => void;
     setView: (v: ViewState) => void;
@@ -23,7 +25,9 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
     userId,
     sellerId,
     customers,
+    dailyClosings,
     onPayInstallment,
+    onUndoPayInstallment,
     onUpdateInstallments,
     onRefresh,
     setView,
@@ -307,9 +311,25 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                                 )}
 
                                 {installment.status === InstallmentStatus.PAID && installment.paidAt && (
-                                    <p className="text-xs text-success text-center mt-3">
-                                        Pago em {new Date(installment.paidAt).toLocaleDateString('pt-BR')}
-                                    </p>
+                                    <div className="mt-3 flex flex-col items-center">
+                                        <p className="text-xs text-success text-center">
+                                            Pago em {new Date(installment.paidAt).toLocaleDateString('pt-BR')}
+                                        </p>
+                                        {!isReadOnly && !dailyClosings.some(c => c.installmentIds?.includes(installment.id) && (c.status === 'Pendente' || c.status === 'Aprovado')) && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (window.confirm('Tem certeza que deseja estornar este pagamento? A parcela voltará ao status pendente.')) {
+                                                        onUndoPayInstallment(installment.id);
+                                                    }
+                                                }}
+                                                className="mt-2 text-[10px] font-black uppercase text-slate-400 hover:text-danger transition-colors flex items-center gap-1"
+                                            >
+                                                <span className="material-symbols-outlined text-[14px]">undo</span>
+                                                Estornar Recebimento
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         );

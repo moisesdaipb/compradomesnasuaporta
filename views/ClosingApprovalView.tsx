@@ -9,6 +9,8 @@ interface ClosingApprovalViewProps {
     deliveries: Delivery[];
     onApproveClosing: (id: string) => void;
     onRejectClosing: (id: string, reason: string) => void;
+    onUpdateSalePaymentMethod: (id: string, method: PaymentMethod) => void;
+    onUpdateInstallmentPaymentMethod: (id: string, method: PaymentMethod) => void;
     setView: (v: ViewState) => void;
     onSelectAuditSeller?: (sellerId: string) => void;
 }
@@ -23,6 +25,8 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
     deliveries,
     onApproveClosing,
     onRejectClosing,
+    onUpdateSalePaymentMethod,
+    onUpdateInstallmentPaymentMethod,
     setView,
     onSelectAuditSeller,
 }) => {
@@ -34,6 +38,7 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
     });
 
     const [selectedClosing, setSelectedClosing] = useState<DailyClosing | null>(null);
+    const [viewingItemsClosing, setViewingItemsClosing] = useState<DailyClosing | null>(null);
     const [rejectReason, setRejectReason] = useState('');
     const [sellerSearch, setSellerSearch] = useState('');
 
@@ -297,6 +302,12 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
         onRejectClosing(id, rejectReason);
         setSelectedClosing(null);
         setRejectReason('');
+    };
+
+    const cyclePaymentMethod = (current: PaymentMethod): PaymentMethod => {
+        if (current === PaymentMethod.PIX) return PaymentMethod.CASH;
+        if (current === PaymentMethod.CASH) return PaymentMethod.CARD;
+        return PaymentMethod.PIX;
     };
 
     return (
@@ -616,6 +627,13 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
                                         {closing.status === ClosingStatus.PENDING && (
                                             <div className="flex border-t border-slate-100 dark:border-slate-700">
                                                 <button
+                                                    onClick={() => setViewingItemsClosing(closing)}
+                                                    className="flex-1 py-3 text-primary font-medium text-sm flex items-center justify-center gap-1 border-r border-slate-100 dark:border-slate-700 hover:bg-primary/5 transition-colors"
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">list_alt</span>
+                                                    Ver Detalhes
+                                                </button>
+                                                <button
                                                     onClick={() => setSelectedClosing(closing)}
                                                     className="flex-1 py-3 text-danger font-medium text-sm flex items-center justify-center gap-1 border-r border-slate-100 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
                                                 >
@@ -674,6 +692,101 @@ const ClosingApprovalView: React.FC<ClosingApprovalViewProps> = ({
                                     }`}
                             >
                                 Confirmar Rejeição
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* View Items Modal */}
+            {viewingItemsClosing && (
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 shadow-2xl">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-bold">Detalhes do Caixa</h3>
+                                <p className="text-xs text-slate-500 font-medium">Vendedor: {viewingItemsClosing.sellerName}</p>
+                            </div>
+                            <button onClick={() => setViewingItemsClosing(null)} className="size-10 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {/* Sales */}
+                            <div className="space-y-3">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Vendas do Período</h4>
+                                {viewingItemsClosing.salesIds?.filter(id => {
+                                    const sale = sales.find(s => s.id === id);
+                                    return sale && sale.paymentMethod !== PaymentMethod.TERM;
+                                }).map(id => {
+                                    const sale = sales.find(s => s.id === id);
+                                    if (!sale) return null;
+                                    return (
+                                        <div key={id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                                            <div>
+                                                <p className="text-sm font-bold truncate max-w-[200px]">{sale.customerName}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <button 
+                                                        onClick={() => onUpdateSalePaymentMethod(sale.id, cyclePaymentMethod(sale.paymentMethod))}
+                                                        className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[9px] font-black uppercase flex items-center gap-1 hover:bg-primary/20 transition-colors"
+                                                    >
+                                                        {sale.paymentMethod}
+                                                        <span className="material-symbols-outlined text-[10px]">sync</span>
+                                                    </button>
+                                                    <span className="text-[9px] text-slate-400 font-bold">
+                                                        {new Date(sale.createdAt).toLocaleDateString('pt-BR')}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <p className="font-black text-sm text-slate-700 dark:text-slate-300">
+                                                R$ {sale.total.toFixed(2)}
+                                            </p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Installments */}
+                            <div className="space-y-3">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Parcelas Recebidas</h4>
+                                {viewingItemsClosing.installmentIds?.map(id => {
+                                    const inst = installments.find(i => i.id === id);
+                                    if (!inst) return null;
+                                    const sale = sales.find(s => s.id === inst.saleId);
+                                    return (
+                                        <div key={id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 flex justify-between items-center border-l-4 border-l-success">
+                                            <div>
+                                                <p className="text-sm font-bold truncate max-w-[200px]">{sale?.customerName || 'Cliente'}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <button 
+                                                        onClick={() => onUpdateInstallmentPaymentMethod(inst.id, cyclePaymentMethod((inst.paymentMethod || PaymentMethod.ON_DELIVERY) as PaymentMethod))}
+                                                        className="px-2 py-0.5 rounded bg-success/10 text-success text-[9px] font-black uppercase flex items-center gap-1 hover:bg-success/20 transition-colors"
+                                                    >
+                                                        {inst.paymentMethod || 'Dinheiro'}
+                                                        <span className="material-symbols-outlined text-[10px]">sync</span>
+                                                    </button>
+                                                    <span className="text-[9px] text-slate-400 font-bold">
+                                                        Recebido em {inst.paidAt ? new Date(inst.paidAt).toLocaleDateString('pt-BR') : ''}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <p className="font-black text-sm text-success">
+                                                R$ {inst.amount.toFixed(2)}
+                                            </p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 flex gap-3">
+                            <button
+                                onClick={() => handleApprove(viewingItemsClosing.id)}
+                                className="flex-1 py-3.5 bg-success text-white rounded-2xl font-black text-sm shadow-lg shadow-success/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                                <span className="material-symbols-outlined">check</span>
+                                Aprovar Caixa Agora
                             </button>
                         </div>
                     </div>

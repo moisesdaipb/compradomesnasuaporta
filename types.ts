@@ -334,6 +334,20 @@ export interface LoginLog {
   created_at: string;
 }
 
+// Registro de Auditoria (Ações no Banco de Dados)
+export interface AuditLog {
+  id: string;
+  created_at: string;
+  user_id?: string;
+  user_name?: string;
+  user_role?: string;
+  table_name: string;
+  record_id?: string;
+  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  old_data?: any;
+  new_data?: any;
+}
+
 // ============================================
 // DADOS DO APP (para store)
 // ============================================
@@ -360,4 +374,5 @@ export interface AppData {
   goals: SaleGoal[];
   settings: AppSettings;
   loginLogs: LoginLog[];
+  auditLogs: AuditLog[];
 }
