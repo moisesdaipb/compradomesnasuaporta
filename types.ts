@@ -79,6 +79,45 @@ export interface BasketModelItem {
   name: string;
   quantity: string;
   tipo: string;
+  // Supply Integration
+  supplyId?: string;
+  recipeQuantity?: number;
+}
+
+// Insumo (Item de mercearia/matéria-prima)
+export interface Supply {
+  id: string;
+  name: string;
+  unit: string;
+  brand?: string;
+  category?: string; // MANTIMENTOS, LIMPEZA, MISTURA
+  volume?: string;    // Ex: 5KG, 1L
+  packageType?: string; // PACOTE, CAIXA, POTE
+  currentQuantity: number;
+  minStock: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Fornecedor
+export interface Supplier {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
+// Registro de Compra/Entrada de Insumo
+export interface SupplyEntry {
+  id: string;
+  supplyId: string;
+  quantity: number;
+  unitCost: number;
+  supplierId?: string; // Link direto para o fornecedor
+  supplier?: string;   // Texto para retrocompatibilidade
+  notes: string;
+  receivedAt: number;
+  createdBy: string;
+  createdAt: number;
 }
 
 // Modelo de Cesta (Pequena, Grande, Big, Short...)
@@ -99,6 +138,37 @@ export interface BasketModel {
 
 }
 
+export interface SupplyRecipe {
+  id: string;
+  name: string;
+  basketModelId?: string;
+  active: boolean;
+  price: number;
+  description?: string;
+  image?: string;
+  weight?: string;
+  createdAt: number;
+}
+
+export interface SupplyRecipeItem {
+  id: string;
+  recipeId: string;
+  supplyId: string;
+  quantity: number;
+}
+
+export interface Production {
+  id: string;
+  recipeId: string;
+  quantity: number;
+  status: 'PENDENTE' | 'APROVADO' | 'REJEITADO';
+  channel: 'geral' | 'empresarial';
+  createdBy?: string;
+  createdAt: number;
+  approvedAt?: number;
+  approvedBy?: string;
+}
+
 // Estoque por Modelo
 export interface StockItem {
   basketModelId: string;
@@ -112,9 +182,22 @@ export interface StockEntry {
   quantity: number;
   unitCost: number;
   supplier: string;
+  channel: 'geral' | 'empresarial';
   receivedAt: number;
   createdBy: string;
   notes?: string;
+}
+
+// Cliente Empresarial
+export interface CorporateCustomer {
+  id: string;
+  companyName: string;
+  cnpj: string;
+  responsibleName: string;
+  responsibleEmail?: string;
+  responsiblePhone: string;
+  address?: string;
+  createdAt: number;
 }
 
 // Etiqueta de Cliente
@@ -166,7 +249,7 @@ export interface Sale {
   paymentMethod: PaymentMethod;
   paymentSubMethod?: string;
   changeAmount?: number;
-  channel: 'online' | 'presencial';
+  channel: 'online' | 'presencial' | 'empresarial';
   status: OrderStatus;
   installmentsCount?: number;
   // Dados de entrega (para vendas online)
@@ -322,6 +405,8 @@ export type ViewState =
   | 'customer-profile'
   | 'settings'
   | 'app-config'
+  | 'supplies'
+  | 'corporate-sales'
   | 'forgot-password'
   | 'reset-password';
 
@@ -375,4 +460,11 @@ export interface AppData {
   settings: AppSettings;
   loginLogs: LoginLog[];
   auditLogs: AuditLog[];
+  supplies: Supply[];
+  supplyEntries: SupplyEntry[];
+  suppliers: Supplier[];
+  supplyRecipes: SupplyRecipe[];
+  supplyRecipeItems: SupplyRecipeItem[];
+  productions: Production[];
+  corporateCustomers: CorporateCustomer[];
 }

@@ -28,6 +28,13 @@ import {
   GoalPeriod,
   LoginLog,
   AuditLog,
+  Supply,
+  SupplyEntry,
+  Supplier,
+  SupplyRecipe,
+  SupplyRecipeItem,
+  Production,
+  CorporateCustomer,
 } from './types';
 import { APP_STORAGE_KEY, SESSION_STORAGE_KEY, BASKET_IMAGES, AVATAR_IMAGES, DEFAULT_LOCATION } from './constants';
 import { supabase } from './supabase';
@@ -57,7 +64,14 @@ const INITIAL_DATA: AppData = {
     logoType: 'icon'
   },
   loginLogs: [],
-  auditLogs: []
+  auditLogs: [],
+  supplies: [],
+  supplyEntries: [],
+  suppliers: [],
+  supplyRecipes: [],
+  supplyRecipeItems: [],
+  productions: [],
+  corporateCustomers: [],
 };
 
 // ============================================
@@ -83,6 +97,13 @@ export const loadData = (): AppData => {
         settings: data.settings || INITIAL_DATA.settings,
         loginLogs: data.loginLogs || [],
         auditLogs: data.auditLogs || [],
+        supplies: data.supplies || [],
+        supplyEntries: data.supplyEntries || [],
+        suppliers: data.suppliers || [],
+        supplyRecipes: data.supplyRecipes || [],
+        supplyRecipeItems: data.supplyRecipeItems || [],
+        productions: data.productions || [],
+        corporateCustomers: data.corporateCustomers || [],
       };
     } catch (e) {
       console.error('Failed to parse storage', e);
@@ -872,6 +893,24 @@ export const fetchBasketModelItems = async (basketModelId: string): Promise<Bask
     console.error('[store] fetchBasketModelItems error:', error);
     throw error;
   }
+  return (data || []).map(item => ({
+    id: item.id,
+    basketModelId: item.basket_model_id,
+    name: item.name,
+    quantity: item.quantity,
+    tipo: item.tipo || 'alimentos',
+    supplyId: item.supply_id,
+    recipeQuantity: item.recipe_quantity,
+  }));
+};
+
+export const fetchAllBasketModelItems = async (): Promise<BasketModelItem[]> => {
+  const { data, error } = await supabase
+    .from('basket_model_items')
+    .select('*')
+    .order('created_at');
+
+  if (error) throw error;
 
   return (data || []).map(item => ({
     id: item.id,
@@ -879,6 +918,8 @@ export const fetchBasketModelItems = async (basketModelId: string): Promise<Bask
     name: item.name,
     quantity: item.quantity,
     tipo: item.tipo || 'alimentos',
+    supplyId: item.supply_id,
+    recipeQuantity: item.recipe_quantity,
   }));
 };
 
@@ -1108,6 +1149,7 @@ export const addStockEntry = async (entry: any) => {
     unit_cost: entry.unit_cost !== undefined ? entry.unit_cost : entry.unitCost,
     supplier: entry.supplier,
     notes: entry.notes,
+    channel: entry.channel || 'geral',
     created_by: entry.created_by || entry.createdBy,
     received_at: entry.received_at || (entry.receivedAt ? new Date(entry.receivedAt).toISOString() : new Date().toISOString())
   };
@@ -1143,6 +1185,7 @@ export const fetchStockEntries = async (): Promise<StockEntry[]> => {
     quantity: e.quantity,
     unitCost: e.unit_cost,
     supplier: e.supplier,
+    channel: e.channel || 'geral',
     receivedAt: new Date(e.received_at).getTime(),
     createdBy: e.created_by,
     notes: e.notes
@@ -1169,6 +1212,469 @@ export const deleteStockEntry = async (id: string) => {
     .delete()
     .eq('id', id);
 
+  if (error) throw error;
+};
+
+// ============================================
+// GESTÃO DE SUPRIMENTOS (INSUMOS)
+// ============================================
+
+export const fetchSupplies = async (): Promise<Supply[]> => {
+  const { data, error } = await supabase
+    .from('supplies')
+    .select('*')
+    .order('name');
+
+  if (error) throw error;
+
+  return (data || []).map(s => ({
+    id: s.id,
+    name: s.name,
+    unit: s.unit || '',
+    brand: s.brand,
+    category: s.category,
+    volume: s.volume,
+    packageType: s.package_type,
+    currentQuantity: Number(s.current_quantity || 0),
+    minStock: Number(s.min_stock || 0),
+    createdAt: new Date(s.created_at).getTime(),
+    updatedAt: new Date(s.updated_at).getTime(),
+  }));
+};
+
+export const fetchSuppliers = async (): Promise<Supplier[]> => {
+  const { data, error } = await supabase
+    .from('suppliers')
+    .select('*')
+    .order('name');
+
+  if (error) throw error;
+
+  return (data || []).map(s => ({
+    id: s.id,
+    name: s.name,
+    createdAt: new Date(s.created_at).getTime(),
+  }));
+};
+
+export const upsertSupplier = async (supplier: Partial<Supplier>) => {
+  const payload = {
+    name: supplier.name?.toUpperCase() || '',
+  };
+
+  if (supplier.id) {
+    const { error } = await supabase
+      .from('suppliers')
+      .update(payload)
+      .eq('id', supplier.id);
+    if (error) throw error;
+    return supplier.id;
+  } else {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .insert(payload)
+      .select('id')
+      .single();
+    if (error) throw error;
+    return data.id;
+  }
+};
+
+export const deleteSupplier = async (id: string) => {
+  const { error } = await supabase
+    .from('suppliers')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const upsertSupply = async (supply: Partial<Supply>) => {
+  const payload: any = {
+    name: supply.name?.toUpperCase(),
+    brand: supply.brand?.toUpperCase(),
+    category: supply.category?.toUpperCase(),
+    volume: supply.volume?.toUpperCase(),
+    unit: supply.unit?.toUpperCase(),
+    package_type: supply.packageType?.toUpperCase(),
+    min_stock: supply.minStock,
+  };
+
+  if (supply.id) {
+    const { error } = await supabase
+      .from('supplies')
+      .update(payload)
+      .eq('id', supply.id);
+    if (error) throw error;
+    return supply.id;
+  } else {
+    const { data, error } = await supabase
+      .from('supplies')
+      .insert({ ...payload, current_quantity: 0 })
+      .select('id')
+      .single();
+    if (error) throw error;
+    return data.id;
+  }
+};
+
+export const deleteSupply = async (id: string) => {
+  const { error } = await supabase
+    .from('supplies')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const fetchSupplyEntries = async (): Promise<SupplyEntry[]> => {
+  const { data, error } = await supabase
+    .from('supply_entries')
+    .select('*')
+    .order('received_at', { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map(e => ({
+    id: e.id,
+    supplyId: e.supply_id,
+    quantity: Number(e.quantity),
+    unitCost: Number(e.unit_cost),
+    supplierId: e.supplier_id,
+    supplier: e.supplier || '',
+    notes: e.notes || '',
+    receivedAt: new Date(e.received_at).getTime(),
+    createdBy: e.created_by,
+    createdAt: new Date(e.created_at).getTime(),
+  }));
+};
+
+export const addSupplyEntry = async (entry: Omit<SupplyEntry, 'id' | 'createdAt'>) => {
+  // 1. Inserir registro de compra
+  const { error: entryError } = await supabase
+    .from('supply_entries')
+    .insert({
+      supply_id: entry.supplyId,
+      quantity: entry.quantity,
+      unit_cost: entry.unitCost,
+      supplier_id: entry.supplierId,
+      supplier: entry.supplier,
+      notes: entry.notes,
+      received_at: new Date(entry.receivedAt).toISOString(),
+      created_by: entry.createdBy,
+    });
+
+  if (entryError) throw entryError;
+
+  // 2. Atualizar saldo do insumo
+  const { error: updateError } = await supabase.rpc('increment_supply_stock', {
+    p_supply_id: entry.supplyId,
+    p_amount: entry.quantity
+  });
+
+  if (updateError) {
+    // Fallback se o RPC falhar ou não existir
+    const { data: s } = await supabase.from('supplies').select('current_quantity').eq('id', entry.supplyId).single();
+    const newQty = (Number(s?.current_quantity) || 0) + Number(entry.quantity);
+    await supabase.from('supplies').update({ current_quantity: newQty }).eq('id', entry.supplyId);
+  }
+};
+
+export const deleteSupplyEntry = async (entryId: string, supplyId: string, quantity: number) => {
+  // 1. Deletar registro
+  const { error: deleteError } = await supabase
+    .from('supply_entries')
+    .delete()
+    .eq('id', entryId);
+
+  if (deleteError) throw deleteError;
+
+  // 2. Reverter saldo
+  const { error: updateError } = await supabase.rpc('increment_supply_stock', {
+    p_supply_id: supplyId,
+    p_amount: -quantity
+  });
+
+  if (updateError) {
+    const { data: s } = await supabase.from('supplies').select('current_quantity').eq('id', supplyId).single();
+    const newQty = (Number(s?.current_quantity) || 0) - Number(quantity);
+    await supabase.from('supplies').update({ current_quantity: newQty }).eq('id', supplyId);
+  }
+};
+
+
+export const fetchSupplyRecipes = async (): Promise<{ recipes: SupplyRecipe[], items: SupplyRecipeItem[] }> => {
+  const { data: recipes, error: rError } = await supabase.from('supply_recipes').select('*').order('created_at', { ascending: false });
+  const { data: items, error: iError } = await supabase.from('supply_recipe_items').select('*');
+
+  if (rError) throw rError;
+  if (iError) throw iError;
+
+  return {
+    recipes: (recipes || []).map(r => ({
+      id: r.id,
+      name: r.name,
+      basketModelId: r.basket_model_id,
+      active: r.active,
+      price: Number(r.price) || 0,
+      description: r.description,
+      image: r.image,
+      weight: r.weight,
+      createdAt: new Date(r.created_at).getTime()
+    })),
+    items: (items || []).map(i => ({
+      id: i.id,
+      recipeId: i.recipe_id,
+      supplyId: i.supply_id,
+      quantity: Number(i.quantity)
+    }))
+  };
+};
+
+export const upsertSupplyRecipe = async (recipe: Partial<SupplyRecipe>, items: { supplyId: string, quantity: number }[]) => {
+  const isNew = !recipe.id;
+  
+  const { data: savedRecipe, error: rError } = await supabase
+    .from('supply_recipes')
+    .upsert({
+      id: recipe.id,
+      name: recipe.name,
+      basket_model_id: recipe.basketModelId,
+      active: recipe.active ?? true,
+      price: recipe.price || 0,
+      description: recipe.description,
+      image: recipe.image,
+      weight: recipe.weight,
+    })
+    .select()
+    .single();
+
+  if (rError) throw rError;
+
+  // Sync Items: Delete old ones and insert new ones (simpler than syncing)
+  if (!isNew) {
+    await supabase.from('supply_recipe_items').delete().eq('recipe_id', savedRecipe.id);
+  }
+
+  if (items.length > 0) {
+    const { error: iError } = await supabase.from('supply_recipe_items').insert(
+      items.map(item => ({
+        recipe_id: savedRecipe.id,
+        supply_id: item.supplyId,
+        quantity: item.quantity
+      }))
+    );
+    if (iError) throw iError;
+  }
+
+  return savedRecipe.id;
+};
+
+export const deleteSupplyRecipe = async (id: string) => {
+  const { error } = await supabase.from('supply_recipes').delete().eq('id', id);
+  if (error) throw error;
+};
+
+export const fetchProductions = async (): Promise<Production[]> => {
+  const { data, error } = await supabase
+    .from('productions')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map(p => ({
+    id: p.id,
+    recipeId: p.recipe_id,
+    quantity: p.quantity,
+    status: p.status as any,
+    channel: p.channel || 'geral',
+    createdBy: p.created_by,
+    createdAt: new Date(p.created_at).getTime(),
+    approvedAt: p.approved_at ? new Date(p.approved_at).getTime() : undefined,
+    approvedBy: p.approved_by
+  }));
+};
+
+export const recordProduction = async (recipeId: string, quantity: number, userId: string) => {
+  const { error } = await supabase.rpc('register_production_event', {
+    p_recipe_id: recipeId,
+    p_quantity: quantity,
+    p_user_id: userId
+  });
+
+  if (error) throw error;
+};
+
+export const approveProduction = async (productionId: string, userId: string, channel: 'geral' | 'empresarial' = 'geral') => {
+  // 1. Buscar dados da produção e da receita vinculada
+  const { data: prod, error: pError } = await supabase
+    .from('productions')
+    .select('quantity, recipe_id')
+    .eq('id', productionId)
+    .single();
+
+  if (pError) throw pError;
+
+  const { data: recipe, error: rError } = await supabase
+    .from('supply_recipes')
+    .select('basket_model_id, name, price, description, image, weight')
+    .eq('id', prod.recipe_id)
+    .single();
+
+  if (rError) throw rError;
+
+  // 2. Atualizar status da produção com canal escolhido
+  const { error: uError } = await supabase
+    .from('productions')
+    .update({
+      status: 'APROVADO',
+      channel,
+      approved_at: new Date().toISOString(),
+      approved_by: userId
+    })
+    .eq('id', productionId);
+
+  if (uError) throw uError;
+
+  // 3. Determinar o basket_model_id (criar automaticamente se não existir)
+  let basketModelId = recipe.basket_model_id;
+
+  if (!basketModelId) {
+    // Auto-criar um modelo de cesta a partir dos dados da receita
+    const { data: newModel, error: mError } = await supabase
+      .from('basket_models')
+      .insert({
+        name: recipe.name,
+        price: Number(recipe.price) || 0,
+        description: recipe.description || '',
+        image: recipe.image || '',
+        weight: recipe.weight || '',
+        active: true,
+      })
+      .select()
+      .single();
+
+    if (mError) throw mError;
+
+    basketModelId = newModel.id;
+
+    // Vincular a receita ao novo modelo para futuras aprovações
+    await supabase
+      .from('supply_recipes')
+      .update({ basket_model_id: basketModelId })
+      .eq('id', prod.recipe_id);
+
+    // Copiar itens da receita para o modelo de cesta
+    const { data: recipeItems } = await supabase
+      .from('supply_recipe_items')
+      .select('supply_id, quantity')
+      .eq('recipe_id', prod.recipe_id);
+
+    if (recipeItems && recipeItems.length > 0) {
+      // Buscar nomes dos insumos
+      const supplyIds = recipeItems.map(i => i.supply_id);
+      const { data: supplyNames } = await supabase
+        .from('supplies')
+        .select('id, name')
+        .in('id', supplyIds);
+
+      const nameMap: Record<string, string> = {};
+      (supplyNames || []).forEach(s => { nameMap[s.id] = s.name; });
+
+      await supabase.from('basket_model_items').insert(
+        recipeItems.map(item => ({
+          basket_model_id: basketModelId,
+          name: nameMap[item.supply_id] || 'INSUMO',
+          quantity: String(item.quantity),
+          supply_id: item.supply_id,
+          recipe_quantity: Number(item.quantity),
+        }))
+      );
+    }
+  }
+
+  // 4. Adicionar registro de entrada de estoque com o canal escolhido
+  await addStockEntry({
+    basketModelId,
+    quantity: prod.quantity,
+    unitCost: 0,
+    supplier: 'PRODUÇÃO INTERNA',
+    channel,
+    notes: `PRODUÇÃO APROVADA: ${recipe.name} (${channel.toUpperCase()})`,
+    createdBy: userId,
+    receivedAt: Date.now()
+  });
+};
+
+export const rejectProduction = async (productionId: string, userId: string) => {
+  const { error } = await supabase
+    .from('productions')
+    .update({
+      status: 'REJEITADO',
+      approved_at: new Date().toISOString(),
+      approved_by: userId
+    })
+    .eq('id', productionId);
+
+  if (error) throw error;
+};
+
+// ============================================
+// CLIENTES EMPRESARIAIS
+// ============================================
+
+export const fetchCorporateCustomers = async (): Promise<CorporateCustomer[]> => {
+  const { data, error } = await supabase
+    .from('corporate_customers')
+    .select('*')
+    .order('company_name', { ascending: true });
+
+  if (error) throw error;
+
+  return (data || []).map(c => ({
+    id: c.id,
+    companyName: c.company_name,
+    cnpj: c.cnpj,
+    responsibleName: c.responsible_name,
+    responsibleEmail: c.responsible_email,
+    responsiblePhone: c.responsible_phone,
+    address: c.address,
+    createdAt: new Date(c.created_at).getTime()
+  }));
+};
+
+export const upsertCorporateCustomer = async (customer: Partial<CorporateCustomer>): Promise<string | undefined> => {
+  const { data, error } = await supabase
+    .from('corporate_customers')
+    .upsert({
+      id: customer.id,
+      company_name: customer.companyName,
+      cnpj: customer.cnpj,
+      responsible_name: customer.responsibleName,
+      responsible_email: customer.responsibleEmail,
+      responsible_phone: customer.responsiblePhone,
+      address: customer.address,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data?.id;
+};
+
+export const deleteCorporateCustomer = async (id: string) => {
+  const { error } = await supabase.from('corporate_customers').delete().eq('id', id);
+  if (error) throw error;
+};
+
+export const updateBasketItemRecipe = async (itemId: string, supplyId: string | null, recipeQuantity: number | null) => {
+  const { error } = await supabase
+    .from('basket_model_items')
+    .update({
+      supply_id: supplyId,
+      recipe_quantity: recipeQuantity
+    })
+    .eq('id', itemId);
+  
   if (error) throw error;
 };
 

@@ -31,6 +31,8 @@ const getMenuItems = (role: UserRole): { icon: string; label: string; view: View
         { icon: 'query_stats', label: 'Insights', view: 'analytics' },
         { icon: 'ads_click', label: 'Metas', view: 'settings' },
         { icon: 'category', label: 'Modelos', view: 'basket-models' },
+        { icon: 'shopping_basket', label: 'Suprimentos', view: 'supplies' },
+        { icon: 'business', label: 'Venda Empresarial', view: 'corporate-sales' },
         { icon: 'credit_score', label: 'Parcelado', view: 'installments' },
         { icon: 'calendar_month', label: 'Gestão de Cobrança', view: 'receivables' },
         { icon: 'list_alt', label: 'Vendas', view: 'sales-list' },

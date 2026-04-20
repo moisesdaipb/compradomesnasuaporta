@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ViewState, Installment, InstallmentStatus, PaymentMethod, Sale, OrderStatus, Customer, DailyClosing } from '../types';
 import PartialPaymentModal from '../components/PartialPaymentModal';
+import { normalizeText } from '../utils';
 
 interface InstallmentsViewProps {
     installments: Installment[];
@@ -42,46 +43,91 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
     // Update overdue status
     const today = Date.now();
     
-    const processedInstallments = installments
-        .filter(i => {
-            const sale = sales.find(s => s.id === i.saleId);
-            if (!sale || sale.status === OrderStatus.CANCELLED) return false;
-            if (userRole === 'gerente') return true;
-            return sale.sellerId === userId;
-        })
-        .map(i => ({
-            ...i,
-            status: i.status === InstallmentStatus.PENDING && i.dueDate < today
-                ? InstallmentStatus.OVERDUE
-                : i.status,
-        }));
+    // 1. Process and Filter in a single pass for maximum reliability
+    // 0. Deduplicate installments by ID (keep last occurrence which is freshest)
+    const deduped = new Map<string, Installment>();
+    installments.forEach(i => deduped.set(i.id, i));
+    const uniqueInstallments = Array.from(deduped.values());
 
-    const filteredInstallments = processedInstallments
-        .filter(i => {
-            if (filter === 'all') return true;
-            if (filter === 'pending') return i.status === InstallmentStatus.PENDING;
-            if (filter === 'paid') return i.status === InstallmentStatus.PAID;
-            if (filter === 'overdue') return i.status === InstallmentStatus.OVERDUE;
-            return true;
-        })
-        .filter(i => {
-                const query = searchQuery.toLowerCase();
-                const cleanQuery = searchQuery.replace(/\D/g, '');
+
+    const allProcessed: (Installment & { status: InstallmentStatus })[] = [];
+    const filtered: (Installment & { status: InstallmentStatus })[] = [];
+
+    // Search query normalization
+    const query = normalizeText(searchQuery);
+    const cleanQuery = searchQuery.replace(/\D/g, '');
+
+    uniqueInstallments.forEach(i => {
+        // A. Basic Permissions & Sale Status
+        const sale = sales.find(s => s.id === i.saleId);
+        if (!sale || sale.status === OrderStatus.CANCELLED) return;
+        if (userRole !== 'gerente' && sale.sellerId !== userId) return;
+
+        // B. Calculate Status (Handle Overdue locally and normalize strings)
+        let currentStatus = i.status;
+        
+        // Ensure status matches Enum case exactly even if source is different (e.g. 'paid' vs 'Pago')
+        if (typeof currentStatus === 'string') {
+            const s = currentStatus.toLowerCase().trim();
+            if (s === 'pago' || s === 'paid') currentStatus = InstallmentStatus.PAID;
+            else if (s === 'atrasado' || s === 'overdue') currentStatus = InstallmentStatus.OVERDUE;
+            else if (s === 'pendente' || s === 'pending') currentStatus = InstallmentStatus.PENDING;
+            else if (s === 'cancelado' || s === 'cancelled') currentStatus = InstallmentStatus.CANCELLED;
+        }
+
+        if (currentStatus === InstallmentStatus.PENDING && i.dueDate < today) {
+            currentStatus = InstallmentStatus.OVERDUE;
+        }
+
+        const processedItem = { ...i, status: currentStatus };
+        allProcessed.push(processedItem);
+
+        // C. Apply Tab Filter
+        let matchesTab = false;
+        if (filter === 'all') {
+            matchesTab = true;
+        } else if (filter === 'pending') {
+            matchesTab = currentStatus === InstallmentStatus.PENDING;
+        } else if (filter === 'paid') {
+            matchesTab = currentStatus === InstallmentStatus.PAID;
+        } else if (filter === 'overdue') {
+            matchesTab = currentStatus === InstallmentStatus.OVERDUE;
+        }
+
+        if (!matchesTab) return;
+
+        // D. Apply Search Filter
+        if (query) {
+            let matchesSearch = false;
+            
+            // Check direct name
+            if (normalizeText(i.customerName || '').includes(query)) matchesSearch = true;
+            
+            // Check customer object name/cpf/phone
+            if (!matchesSearch) {
                 const customer = customers.find(c => c.id === i.customerId);
-                const cleanCpf = (customer?.cpf || '').replace(/\D/g, '');
-                const cleanPhone = (customer?.phone || '').replace(/\D/g, '');
+                if (customer) {
+                    if (normalizeText(customer.name).includes(query)) matchesSearch = true;
+                    if (cleanQuery) {
+                        const cleanCpf = (customer.cpf || '').replace(/\D/g, '');
+                        const cleanPhone = (customer.phone || '').replace(/\D/g, '');
+                        if (cleanCpf.includes(cleanQuery) || cleanPhone.includes(cleanQuery)) matchesSearch = true;
+                    }
+                }
+            }
 
-                return (
-                    (i.customerName || '').toLowerCase().includes(query) ||
-                    (cleanQuery && cleanCpf.includes(cleanQuery)) ||
-                    (cleanQuery && cleanPhone.includes(cleanQuery))
-                );
-        })
-        .sort((a, b) => a.dueDate - b.dueDate);
+            if (!matchesSearch) return;
+        }
 
-    const pendingCount = processedInstallments.filter(i => i.status === InstallmentStatus.PENDING).length;
-    const overdueCount = processedInstallments.filter(i => i.status === InstallmentStatus.OVERDUE).length;
-    const totalPending = processedInstallments
+        filtered.push(processedItem);
+    });
+
+    const filteredInstallments = filtered.sort((a, b) => a.dueDate - b.dueDate);
+
+    // Stats based on all processed installments
+    const pendingCount = allProcessed.filter(i => i.status === InstallmentStatus.PENDING).length;
+    const overdueCount = allProcessed.filter(i => i.status === InstallmentStatus.OVERDUE).length;
+    const totalPending = allProcessed
         .filter(i => i.status !== InstallmentStatus.PAID)
         .reduce((acc, i) => acc + i.amount, 0);
 
@@ -188,13 +234,13 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                         <p className="text-slate-500">Nenhuma parcela encontrada</p>
                     </div>
                 ) : (
-                    filteredInstallments.map((installment) => {
+                    filteredInstallments.map((installment, idx) => {
                         const statusConfig = getStatusConfig(installment.status);
                         const isPast = installment.dueDate < today;
 
                         return (
                             <div
-                                key={installment.id}
+                                key={`${installment.id}-${idx}`}
                                 className={`bg-white dark:bg-slate-800 p-4 rounded-xl border transition-all ${installment.status === InstallmentStatus.OVERDUE
                                     ? 'border-danger/30'
                                     : 'border-slate-100 dark:border-slate-700'

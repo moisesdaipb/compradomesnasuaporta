@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Customer, TeamMember, ViewState, Sale, Installment, CustomerTag } from '../types';
+import { normalizeText } from '../utils';
 
 interface ManagerCustomersViewProps {
     customers: Customer[];
@@ -30,18 +31,18 @@ const ManagerCustomersView: React.FC<ManagerCustomersViewProps> = ({
 
     const filteredCustomers = customers
         .filter(c => {
-            const query = searchQuery.toLowerCase();
+            const query = normalizeText(searchQuery);
             const cleanQuery = searchQuery.replace(/\D/g, '');
             const cleanCpf = (c.cpf || '').replace(/\D/g, '');
             const cleanPhone = (c.phone || '').replace(/\D/g, '');
 
             return (
-                c.name.toLowerCase().includes(query) ||
+                normalizeText(c.name).includes(query) ||
                 (cleanQuery && cleanCpf.includes(cleanQuery)) ||
                 (cleanQuery && cleanPhone.includes(cleanQuery)) ||
                 (c.phone && c.phone.includes(searchQuery)) ||
                 (c.cpf && c.cpf.includes(searchQuery)) ||
-                (c.tags || []).some(t => t.customLabel?.toLowerCase().includes(query))
+                (c.tags || []).some(t => normalizeText(t.customLabel || '').includes(query))
             );
         })
         .sort((a, b) => b.createdAt - a.createdAt);

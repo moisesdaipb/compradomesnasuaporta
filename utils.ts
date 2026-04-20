@@ -63,3 +63,10 @@ export const parseDBDate = (dateStr: string): number => {
     // month - 1 porque no JS os meses vão de 0 a 11
     return new Date(year, month - 1, day).getTime();
 };
+
+export const normalizeText = (text: string): string => {
+    return text
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+};

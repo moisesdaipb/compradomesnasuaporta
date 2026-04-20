@@ -106,6 +106,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
     const totalRevenue = useMemo(() => activeSales.reduce((a, s) => a + s.total, 0), [activeSales]);
     const onlineRevenue = useMemo(() => activeSales.filter(s => s.channel === 'online').reduce((a, s) => a + s.total, 0), [activeSales]);
     const presencialRevenue = useMemo(() => activeSales.filter(s => s.channel === 'presencial').reduce((a, s) => a + s.total, 0), [activeSales]);
+    const corporateRevenue = useMemo(() => activeSales.filter(s => s.channel === 'empresarial').reduce((a, s) => a + s.total, 0), [activeSales]);
     const cashRevenue = useMemo(() => activeSales.filter(s => s.paymentMethod !== PaymentMethod.TERM).reduce((a, s) => a + s.total, 0), [activeSales]);
     const termRevenue = useMemo(() => activeSales.filter(s => s.paymentMethod === PaymentMethod.TERM).reduce((a, s) => a + s.total, 0), [activeSales]);
 
@@ -409,7 +410,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                             {/* Seller */}
                             <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Vendedor</label><select value={filters.seller} onChange={e => setFilters(p => ({ ...p, seller: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todos</option>{team.filter(t => t.role === 'vendedor').map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
                             {/* Channel */}
-                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Canal</label><select value={filters.channel} onChange={e => setFilters(p => ({ ...p, channel: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todos</option><option value="online">Online</option><option value="presencial">Presencial</option></select></div>
+                            <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Canal</label><select value={filters.channel} onChange={e => setFilters(p => ({ ...p, channel: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todos</option><option value="online">Online</option><option value="presencial">Presencial</option><option value="empresarial">Empresarial</option></select></div>
                             {/* City */}
                             <div><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Cidade</label><select value={filters.city} onChange={e => setFilters(p => ({ ...p, city: e.target.value, neighborhood: '' }))} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-[10px] font-bold text-slate-700 dark:text-white outline-none focus:border-primary cursor-pointer"><option value="">Todas</option>{[...new Set(customers.map(c => c.city).filter(Boolean))].sort().map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                             {/* Neighborhood */}
@@ -622,7 +623,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                                         <td className="px-5 py-3 text-[10px] text-slate-500 truncate max-w-[100px]">{s.sellerName || '-'}</td>
                                         <td className="px-5 py-3 text-[11px] font-black text-slate-900 dark:text-white whitespace-nowrap">{fmt(s.total)}</td>
                                         <td className="px-5 py-3"><span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${s.paymentMethod === PaymentMethod.TERM ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>{s.paymentMethod}</span></td>
-                                        <td className="px-5 py-3"><span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${s.channel === 'online' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{s.channel}</span></td>
+                                        <td className="px-5 py-3"><span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${s.channel === 'online' ? 'bg-blue-100 text-blue-600' : s.channel === 'empresarial' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-500'}`}>{s.channel}</span></td>
                                         <td className="px-5 py-3 text-right"><span className={`text-[8px] font-black px-2 py-1 rounded-lg inline-block ${s.status === OrderStatus.DELIVERED ? 'bg-emerald-500 text-white' : s.status === OrderStatus.CANCELLED ? 'bg-red-500 text-white' : 'bg-amber-400 text-white'}`}>{s.status}</span></td>
                                     </tr>
                                 ))}
@@ -659,6 +660,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ sales, installments, deli
                             <div className="flex justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-xl"><span className="text-sm font-bold text-slate-600">Total Bruto</span><span className="text-sm font-black text-slate-900 dark:text-white">{fmt(totalRevenue)}</span></div>
                             <div className="flex justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl"><span className="text-sm font-bold text-blue-600">Online</span><span className="text-sm font-black">{fmt(onlineRevenue)}</span></div>
                             <div className="flex justify-between p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl"><span className="text-sm font-bold text-indigo-600">Presencial</span><span className="text-sm font-black">{fmt(presencialRevenue)}</span></div>
+                            <div className="flex justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl"><span className="text-sm font-bold text-purple-600">Empresarial</span><span className="text-sm font-black">{fmt(corporateRevenue)}</span></div>
                             <div className="border-t pt-3"><p className="text-[10px] text-slate-400 mb-2">Total de vendas: {activeSales.length}</p></div>
                         </div>
                     </Modal>

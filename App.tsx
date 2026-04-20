@@ -22,6 +22,12 @@ import {
   SaleGoal,
   AppSettings,
   AuditLog,
+  Supply,
+  SupplyEntry,
+  Supplier,
+  SupplyRecipe,
+  SupplyRecipeItem,
+  Production,
 } from './types';
 import {
   loadData,
@@ -73,6 +79,26 @@ import {
   fetchAuditLogs,
   updateSalePaymentMethod,
   updateInstallmentPaymentMethod,
+  fetchSupplies,
+  upsertSupply,
+  deleteSupply,
+  fetchSupplyEntries,
+  addSupplyEntry,
+  updateBasketItemRecipe,
+  fetchSuppliers,
+  upsertSupplier,
+  deleteSupplier,
+  deleteSupplyEntry,
+  recordProduction,
+  fetchSupplyRecipes,
+  upsertSupplyRecipe,
+  deleteSupplyRecipe,
+  fetchProductions,
+  approveProduction,
+  rejectProduction,
+  fetchCorporateCustomers,
+  upsertCorporateCustomer,
+  deleteCorporateCustomer,
 } from './store';
 import { supabase } from './supabase';
 import { formatCurrency, validateCPF, isValidEmail } from './utils';
@@ -108,6 +134,8 @@ import AnalyticsView from './views/AnalyticsView';
 import ManagerCustomersView from './views/ManagerCustomersView';
 import SellerAuditView from './views/SellerAuditView';
 import ManagerAuditView from './views/ManagerAuditView';
+import SuppliesView from './views/SuppliesView';
+import CorporateSaleView from './views/CorporateSaleView';
 
 interface AppState extends AppData {
   allUsers: any[];
@@ -116,6 +144,10 @@ interface AppState extends AppData {
 
 const App: React.FC = () => {
   // Auth State
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [supplyRecipes, setSupplyRecipes] = useState<SupplyRecipe[]>([]);
+  const [supplyRecipeItems, setSupplyRecipeItems] = useState<SupplyRecipeItem[]>([]);
+  const [productions, setProductions] = useState<Production[]>([]);
   const [session, setSession] = useState<UserSession | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -176,6 +208,13 @@ const App: React.FC = () => {
       allUsers: [],
       loginLogs: [],
       auditLogs: [],
+      supplies: [],
+      supplyEntries: [],
+      suppliers: [],
+      supplyRecipes: [],
+      supplyRecipeItems: [],
+      productions: [],
+      corporateCustomers: [],
     };
   });
 
@@ -251,6 +290,9 @@ const App: React.FC = () => {
         fetchSettings().catch(err => { console.error('fetchSettings failed:', err); return { appName: 'Cesta Básica Na Sua Casa' }; }),
         (isManager ? fetchLoginLogs() : Promise.resolve([])).catch(err => { console.error('fetchLoginLogs failed:', err); return []; }),
         (isManager ? fetchAuditLogs() : Promise.resolve([])).catch(err => { console.error('fetchAuditLogs failed:', err); return []; }),
+        (isManager ? fetchSupplies() : Promise.resolve([])).catch(err => { console.error('fetchSupplies failed:', err); return []; }),
+        (isManager ? fetchSupplyEntries() : Promise.resolve([])).catch(err => { console.error('fetchSupplyEntries failed:', err); return []; }),
+        (isManager ? fetchSuppliers() : Promise.resolve([])).catch(err => { console.error('fetchSuppliers failed:', err); return []; }),
       ]);
 
       // If aborted while fetching, don't update state
@@ -259,8 +301,17 @@ const App: React.FC = () => {
         return;
       }
 
-      const [baskets, customers, team, sales, deliveries, closings, stockEntries, stockSummary, allUsers, installments, goals, settings, loginLogs, auditLogs] = results;
+      const [baskets, customers, team, sales, deliveries, closings, stockEntries, stockSummary, allUsers, installments, goals, settings, loginLogs, auditLogs, supplies, supplyEntries, suppliers] = results;
+      const recipeData = await fetchSupplyRecipes();
+      const productionsData = await fetchProductions();
+      const corporateCustomersData = await (isManager ? fetchCorporateCustomers() : Promise.resolve([]));
+
       console.log(`[App] Data fetched in ${Date.now() - fetchStart}ms`);
+
+      setSuppliers(suppliers);
+      setSupplyRecipes(recipeData.recipes);
+      setSupplyRecipeItems(recipeData.items);
+      setProductions(productionsData);
 
       setAppData(prev => {
         const stockMap = new Map<string, number>();
@@ -302,6 +353,13 @@ const App: React.FC = () => {
           settings,
           loginLogs,
           auditLogs,
+          supplies: supplies,
+          supplyEntries: supplyEntries,
+          suppliers: suppliers,
+          supplyRecipes: recipeData.recipes,
+          supplyRecipeItems: recipeData.items,
+          productions: productionsData,
+          corporateCustomers: corporateCustomersData,
         };
       });
     } catch (error: any) {
@@ -874,16 +932,64 @@ const App: React.FC = () => {
   }, [refreshBasketModelsOnly, cancelRefresh]);
 
   // Stock Handlers
+  const handleUpsertRecipe = useCallback(async (recipe: Partial<SupplyRecipe>, items: { supplyId: string, quantity: number }[]) => {
+    try {
+      await upsertSupplyRecipe(recipe, items);
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao salvar receita');
+    }
+  }, [refreshData]);
+
+  const handleDeleteRecipe = useCallback(async (id: string) => {
+    try {
+      await deleteSupplyRecipe(id);
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao excluir receita');
+    }
+  }, [refreshData]);
+
+  const handleApproveProduction = useCallback(async (productionId: string, channel: 'geral' | 'empresarial' = 'geral') => {
+    if (!session) return;
+    try {
+      await approveProduction(productionId, session.id, channel);
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao aprovar produção');
+    }
+  }, [session, refreshData]);
+
+  const handleRejectProduction = useCallback(async (productionId: string) => {
+    if (!session) return;
+    try {
+      await rejectProduction(productionId, session.id);
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao rejeitar produção');
+    }
+  }, [session, refreshData]);
+
+  const handleAddSupplyEntry = useCallback(async (entry: Omit<SupplyEntry, 'id' | 'createdAt'>) => {
+    try {
+      await addSupplyEntry(entry);
+      triggerRefresh(100);
+      alert('Entrada de insumo realizada com sucesso!');
+    } catch (error: any) {
+      console.error('Error adding supply entry:', error);
+      alert('Erro ao adicionar insumo: ' + (error.message || 'Erro desconhecido'));
+    }
+  }, [triggerRefresh]);
+
   const handleAddStockEntry = useCallback(async (entry: Omit<StockEntry, 'id' | 'createdBy'>) => {
     try {
       await addStockEntry({
-        basket_model_id: entry.basketModelId,
-        quantity: entry.quantity,
-        unit_cost: entry.unitCost,
-        supplier: entry.supplier,
-        notes: entry.notes,
-        created_by: session?.id || null,
-        received_at: new Date(entry.receivedAt).toISOString()
+        ...entry,
+        createdBy: session?.id || ''
       });
       triggerRefresh(100);
       alert('Entrada de estoque realizada com sucesso!');
@@ -908,13 +1014,13 @@ const App: React.FC = () => {
     if (!session) return;
     try {
       await addStockEntry({
-        basket_model_id: modelId,
+        basketModelId: modelId,
         quantity: -Math.abs(quantity),
-        unit_cost: 0,
+        unitCost: 0,
         supplier: 'Ajuste Manual',
         notes,
-        created_by: session.id,
-        received_at: new Date().toISOString()
+        createdBy: session.id,
+        receivedAt: Date.now()
       });
       triggerRefresh(100);
       alert('Estoque diminuído com sucesso!');
@@ -923,6 +1029,18 @@ const App: React.FC = () => {
       alert('Erro ao diminuir estoque: ' + (error.message || 'Erro desconhecido'));
     }
   }, [session, triggerRefresh]);
+
+  const handleRecordProductionLocal = useCallback(async (recipeId: string, quantity: number) => {
+    if (!session) return;
+    try {
+      await recordProduction(recipeId, quantity, session.id);
+      await refreshData();
+      alert('Produção registrada! Aguardando aprovação do gerente.');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao registrar produção');
+    }
+  }, [session, refreshData]);
 
   // Customer Handlers
   const handleAddCustomer = useCallback(async (customer: Omit<Customer, 'id' | 'createdAt' | 'createdBy'>): Promise<Customer> => {
@@ -1059,7 +1177,7 @@ const App: React.FC = () => {
     customerName: string,
     items: SaleItem[],
     paymentMethod: PaymentMethod,
-    channel: 'online' | 'presencial',
+    channel: 'online' | 'presencial' | 'empresarial',
     installmentsCount?: number,
     installmentDates?: number[],
     deliveryInfo?: {
@@ -1999,6 +2117,55 @@ const App: React.FC = () => {
             settings={appData.settings}
             loginLogs={appData.loginLogs}
             customers={appData.customers}
+            setView={setView}
+          />
+        );
+
+      case 'supplies':
+        return (
+          <SuppliesView
+            basketModels={appData.basketModels}
+            supplies={appData.supplies}
+            supplyEntries={appData.supplyEntries}
+            suppliers={appData.suppliers}
+            supplyRecipes={appData.supplyRecipes}
+            supplyRecipeItems={appData.supplyRecipeItems}
+            productions={appData.productions}
+            onUpsertSupply={upsertSupply}
+            onDeleteSupply={deleteSupply}
+            onAddSupplyEntry={handleAddSupplyEntry}
+            onUpsertSupplier={upsertSupplier}
+            onDeleteSupplier={deleteSupplier}
+            onDeleteSupplyEntry={handleDeleteStockEntry}
+            onUpsertRecipe={handleUpsertRecipe}
+            onDeleteRecipe={handleDeleteRecipe}
+            onRecordProduction={handleRecordProductionLocal}
+            onApproveProduction={handleApproveProduction}
+            onRejectProduction={handleRejectProduction}
+            onUpdateRecipe={updateBasketItemRecipe}
+            onRefresh={() => triggerRefresh(100)}
+            setView={setView}
+            userId={user.id}
+            userRole={user.role}
+          />
+        );
+
+      case 'corporate-sales':
+        return (
+          <CorporateSaleView
+            corporateCustomers={appData.corporateCustomers}
+            supplyRecipes={appData.supplyRecipes}
+            stockEntries={appData.stockEntries}
+            onCreateSale={handleCreateSale}
+            onUpsertCorporateCustomer={async (customer) => {
+              await upsertCorporateCustomer(customer);
+              await refreshData();
+            }}
+            onDeleteCorporateCustomer={async (id) => {
+              await deleteCorporateCustomer(id);
+              await refreshData();
+            }}
+            onRefresh={() => triggerRefresh(100)}
             setView={setView}
           />
         );
