@@ -90,7 +90,7 @@ const SuppliesView: React.FC<SuppliesViewProps> = ({
   // Calculator State
   const [isCalculatorModalOpen, setIsCalculatorModalOpen] = useState(false);
   const [calculatorRecipeId, setCalculatorRecipeId] = useState<string | null>(null);
-  const [calculatorTargetQty, setCalculatorTargetQty] = useState(1);
+  const [calculatorTargetQty, setCalculatorTargetQty] = useState('1');
 
   // Entries grouping state
   const [selectedEntryGroupKey, setSelectedEntryGroupKey] = useState<string | null>(null);
@@ -392,7 +392,7 @@ const SuppliesView: React.FC<SuppliesViewProps> = ({
             {dashboardPotentials.map(dp => (
               <div 
                 key={dp.recipeId} 
-                onClick={() => { setCalculatorRecipeId(dp.recipeId); setCalculatorTargetQty(dp.potential === 0 ? 1 : dp.potential); setIsCalculatorModalOpen(true); }}
+                onClick={() => { setCalculatorRecipeId(dp.recipeId); setCalculatorTargetQty(dp.potential === 0 ? '1' : String(dp.potential)); setIsCalculatorModalOpen(true); }}
                 className="bg-white/10 backdrop-blur-md rounded-2xl p-3 flex items-center justify-between border border-white/10 hover:bg-white/20 cursor-pointer transition-all active:scale-[0.98]"
               >
                 <span className="font-bold text-xs uppercase tracking-tight">{dp.name}</span>
@@ -767,7 +767,8 @@ const SuppliesView: React.FC<SuppliesViewProps> = ({
                 const items = supplyRecipeItems.filter(i => i.recipeId === calculatorRecipeId);
                 const results = items.map(item => {
                   const supply = supplies.find(s => s.id === item.supplyId);
-                  const required = (item.quantity || 1) * calculatorTargetQty;
+                  const targetQtyNum = Math.max(1, parseInt(calculatorTargetQty) || 1);
+                  const required = (item.quantity || 1) * targetQtyNum;
                   const current = supply ? supply.currentQuantity : 0;
                   const missing = Math.max(0, required - current);
                   return { supplyName: supply ? `${supply.name} (${supply.brand})` : 'Insumo', required, current, missing };
@@ -809,7 +810,7 @@ const SuppliesView: React.FC<SuppliesViewProps> = ({
                       <body>
                         <div class="header">
                           <h1 class="title">Pedido de Compra</h1>
-                          <p class="subtitle">Modelo: <strong>${recipe?.name || 'Receita'}</strong> | Data: ${today} | Meta: ${calculatorTargetQty} cestas</p>
+                          <p class="subtitle">Modelo: <strong>${recipe?.name || 'Receita'}</strong> | Data: ${today} | Meta: ${Math.max(1, parseInt(calculatorTargetQty) || 1)} cestas</p>
                         </div>
                         <table>
                           <thead>
@@ -855,7 +856,8 @@ const SuppliesView: React.FC<SuppliesViewProps> = ({
                         type="number" 
                         min="1"
                         value={calculatorTargetQty} 
-                        onChange={e => setCalculatorTargetQty(Math.max(1, Number(e.target.value)))} 
+                        onChange={e => setCalculatorTargetQty(e.target.value)} 
+                        onBlur={() => { if (!calculatorTargetQty || parseInt(calculatorTargetQty) < 1) setCalculatorTargetQty('1'); }}
                         className="w-full h-16 px-6 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl font-black text-xl text-center outline-none focus:border-primary transition-colors"
                       />
                     </div>
@@ -867,13 +869,39 @@ const SuppliesView: React.FC<SuppliesViewProps> = ({
                           {hasMissing ? 'Lista de Compras Necessária' : 'Você tem Insumos Suficientes!'}
                         </h5>
                         {hasMissing && (
-                          <button 
-                            onClick={handleGeneratePDF}
-                            className="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-2"
-                          >
-                            <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
-                            Gerar Pedido
-                          </button>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => {
+                                const targetQtyNum = Math.max(1, parseInt(calculatorTargetQty) || 1);
+                                const today = new Date().toLocaleDateString('pt-BR');
+                                const missingItems = results.filter(r => r.missing > 0);
+                                let msg = `📋 *PEDIDO DE COMPRA*\n`;
+                                msg += `📅 Data: ${today}\n`;
+                                msg += `🧺 Modelo: *${recipe?.name || 'Receita'}*\n`;
+                                msg += `🎯 Meta: *${targetQtyNum} cestas*\n\n`;
+                                msg += `━━━━━━━━━━━━━━━━━━\n`;
+                                msg += `⚠️ *ITENS EM FALTA:*\n\n`;
+                                missingItems.forEach((r, idx) => {
+                                  msg += `${idx + 1}. *${r.supplyName}*\n`;
+                                  msg += `   Precisa: ${r.required} | Tem: ${r.current} | *Faltam: ${r.missing}*\n\n`;
+                                });
+                                msg += `━━━━━━━━━━━━━━━━━━\n`;
+                                msg += `📦 Total de itens em falta: *${missingItems.length}*`;
+                                window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                              }}
+                              className="bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border border-emerald-200 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5"
+                            >
+                              <span className="material-symbols-outlined text-sm">send</span>
+                              WhatsApp
+                            </button>
+                            <button 
+                              onClick={handleGeneratePDF}
+                              className="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5"
+                            >
+                              <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                              Gerar Pedido
+                            </button>
+                          </div>
                         )}
                       </div>
                       

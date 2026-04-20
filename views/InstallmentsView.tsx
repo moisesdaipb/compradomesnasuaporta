@@ -128,7 +128,7 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
     const pendingCount = allProcessed.filter(i => i.status === InstallmentStatus.PENDING).length;
     const overdueCount = allProcessed.filter(i => i.status === InstallmentStatus.OVERDUE).length;
     const totalPending = allProcessed
-        .filter(i => i.status !== InstallmentStatus.PAID)
+        .filter(i => i.status !== InstallmentStatus.PAID && i.status !== InstallmentStatus.CANCELLED)
         .reduce((acc, i) => acc + i.amount, 0);
 
     const getStatusConfig = (status: InstallmentStatus) => {

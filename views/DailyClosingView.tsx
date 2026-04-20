@@ -97,7 +97,15 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
             const sale = sales.find(s => s.id === i.saleId);
             const delivery = deliveries.find(d => d.saleId === i.saleId);
             const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId;
-            return i.status === InstallmentStatus.PENDING && isAssignedToMe;
+            
+            let status = i.status;
+            if (typeof status === 'string') {
+                const s = status.toLowerCase().trim();
+                if (s === 'atrasado' || s === 'overdue') status = InstallmentStatus.OVERDUE;
+                else if (s === 'pendente' || s === 'pending') status = InstallmentStatus.PENDING;
+            }
+
+            return (status === InstallmentStatus.PENDING || status === InstallmentStatus.OVERDUE) && isAssignedToMe;
         }).sort((a, b) => a.dueDate - b.dueDate),
         [installments, sales, sellerId, deliveries]
     );
@@ -534,7 +542,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                             <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Parcelas a Receber</h5>
                             {pendingInstallments.map(inst => {
                                 const sale = sales.find(s => s.id === inst.saleId);
-                                const isOverdue = inst.dueDate < Date.now();
+                                const isOverdue = inst.dueDate < Date.now() || String(inst.status).toLowerCase().trim() === 'overdue' || String(inst.status).toLowerCase().trim() === 'atrasado';
                                 return (
                                     <div
                                         key={inst.id}

@@ -29,6 +29,7 @@ O sistema deve suportar a identidade visual do cliente de forma reativa:
 
 ## 6. Padrões de Código
 - **Store**: Use `fetchX` para GET, `upsertX` para POST/PUT. Use console logs prefixados com `[store]` para facilitar trace de erros em tempo real.
+- **Busca Normalizada**: Sempre use a função `normalizeText` de `utils.ts` para buscas por nome. Isso garante que buscas ignorem acentos (ex: Valéria vs Valeria) e maiúsculas/minúsculas.
 - **Tipagem**: Mantenha `types.ts` atualizado com qualquer alteração no schema do banco de dados imediatamente.
 
 ---

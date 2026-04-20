@@ -12,19 +12,23 @@ Este documento serve como um mapa para navegar no código-fonte do sistema **Ces
 *   `types.ts`: **Definições de Tipagem.** Centraliza todas as interfaces e enums usados em todo o sistema.
 *   `constants.ts`: Armazena chaves de armazenamento, cores do tema e URLs estáticas.
 
-### `/views` (Cerca de 26 Visualizações)
-Este diretório contém a interface de cada funcionalidade:
-*   `Dashboard.tsx`: Visão principal do Gerente.
-*   `DailyClosingView.tsx`: Tela de prestação de contas do Vendedor.
-*   `CustomerStoreView.tsx`: Catálogo online para clientes.
-*   `CustomerCheckoutView.tsx`: Interface de finalização de pedido online.
+*   `CorporateSaleView.tsx`: Fluxo completo de venda empresarial (B2B).
+*   `SuppliesView.tsx`: Gestão de insumos, calculadora de produção e geração de pedidos de compra.
+*   `InstallmentsView.tsx`: Gestão de cobranças parceladas com filtros avançados.
 *   `GpsTrackingView.tsx`: Mapa para acompanhamento de entregadores.
-*   ... (e outros 20+ arquivos específicos).
+*   ... (e outros 18+ arquivos específicos).
 
 ### `/components` (Componentes Reutilizáveis)
 *   `Layout.tsx`: Estrutura padrão com Sidebar e áreas de conteúdo.
 *   `DeliveryDetailsModal.tsx`: Popup detalhado para gestão de entregas.
 *   `InvoiceModal.tsx`: Visualização de comprovante de venda.
+
+---
+
+### `/documentacao` (Novo)
+*   `REGRAS_DO_SISTEMA.md`: Lógica de negócio e permissões (Ex: Regras de cancelamento).
+*   `MANUAL_TECNICO.md`: Documentação executiva para precificação.
+*   `data_dictionary.md`: Esquema detalhado do Postgres.
 
 ---
 

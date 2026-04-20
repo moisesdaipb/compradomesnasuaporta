@@ -69,16 +69,48 @@ Registro de vendas realizadas.
 | `payment_method` | TEXT | `PIX`, `Cartão`, `A Prazo` ou `Na Entrega`. |
 | `status` | TEXT | Status do pedido (Pendente, Entregue, etc). |
 
-### 5. `deliveries`
-Gerenciamento de entregas de cestas.
+### 6. `corporate_customers`
+Cadastro especializado para clientes empresariais (B2B).
 
 | Coluna | Tipo | Descrição |
 | :--- | :--- | :--- |
 | `id` | UUID | Chave primária. |
-| `sale_id` | UUID | Venda associada. |
-| `driver_id` | UUID | Entregador atribuído. |
-| `status` | TEXT | `Pendente`, `Em Rota`, `Entregue`, etc. |
-| `delivered_at` | TIMESTAMPTZ | Data e hora da conclusão. |
+| `company_name` | TEXT | Razão Social / Nome da Empresa. |
+| `cnpj` | TEXT | CNPJ (único). |
+| `responsible_name` | TEXT | Nome do contato principal. |
+| `responsible_phone` | TEXT | Telefone do responsável. |
+| `address` | TEXT | Endereço comercial completo. |
+
+### 7. `supplies` (Insumos)
+Banco de dados de produtos brutos (feijão, arroz, etc).
+
+| Coluna | Tipo | Descrição |
+| :--- | :--- | :--- |
+| `id` | UUID | Chave primária. |
+| `name` | TEXT | Nome do insumo. |
+| `brand` | TEXT | Marca do produto. |
+| `current_quantity` | NUMERIC | Estoque real em tempo real. |
+| `min_stock` | NUMERIC | Nível crítico para alerta de compra. |
+| `unit` | TEXT | Unidade de medida (kg, L, un). |
+
+### 8. `supply_recipes` (Composições)
+Define quais insumos compõem cada modelo de cesta.
+
+| Coluna | Tipo | Descrição |
+| :--- | :--- | :--- |
+| `id` | UUID | Chave primária. |
+| `name` | TEXT | Nome da composição. |
+| `basket_model_id` | UUID | Vínculo com o modelo de venda. |
+| `price` | NUMERIC | Custo base de produção. |
+
+### 9. `supply_recipe_items`
+Itens individuais de cada receita.
+
+| Coluna | Tipo | Descrição |
+| :--- | :--- | :--- |
+| `recipe_id` | UUID | Referência à receita pai. |
+| `supply_id` | UUID | Referência ao insumo. |
+| `quantity` | NUMERIC | Quantidade necessária para 1 unidade. |
 
 ## Regras de Segurança (RLS)
 
