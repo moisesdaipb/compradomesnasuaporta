@@ -115,8 +115,42 @@ Quando um cliente solicita cancelamento (status = `CANCELLATION_REQUESTED`), o g
 
 ---
 
+## 2. Paginação e Ordenação de Listas (Supabase)
+
+### Resumo
+Sempre que uma lista contiver mais registros do que o limite padrão da API (1000 registros) e for necessário usar paginação (`.range(from, to)`), a ordenação **deve conter um critério de desempate único** para garantir a estabilidade das páginas.
+
+### Regra de Ouro (Stability Sort)
+Se ordenar dados usando uma propriedade de tempo não-única (como `due_date`, `createdAt` em dias com múltiplos registros) **é obrigatório** adicionar um segundo `.order('id', { ascending: true })`.
+
+**Motivo:** Se o banco (Postgres) não souber a ordem exata de dois registros com a mesma data e eles caírem exatamente na quebra de uma página (ex: limite 1000), o sistema pode saltar um dos registros (ele não aparecerá nem na página 1, nem na página 2) devido ao re-embaralhamento interno das páginas.
+
+### Implementação Universal (Tabelas de Alto Crescimento)
+Devido ao risco de bloqueio, foi estabelecido um padrão de paginação via loop `while` no arquivo `store.ts`.  
+As seguintes buscas/tabelas já operam nativamente imunes ao limite de 1000 linhas e imunes ao salto de dados:
+*   `fetchInstallments` (Parcelas)
+*   `fetchSales` (Vendas)
+*   `fetchCustomers` (Clientes - Usam ordenação por nome + ID)
+*   `fetchDeliveries` (Entregas)
+*   `fetchDailyClosings` (Fechamentos Diários e Recibos Pix/Cartão)
+
+**Exemplo Base**:
+
+```typescript
+    const { data, error } = await supabase
+      .from('installments')
+      .select('*')
+      .order('due_date', { ascending: true }) // Critério Principal
+      .order('id', { ascending: true })       // Critério de Desempate OBRIGATÓRIO
+      .range(from, from + PAGE_SIZE - 1);
+```
+
+---
+
 ## Histórico de Atualizações
 
 | Data | Regra | Autor |
 |---|---|---|
 | 20/04/2026 | Documentada regra de cancelamento por perfil | Sistema |
+| 20/04/2026 | Adicionada regra de Estabilidade de Paginação (Supabase) | Sistema |
+| 20/04/2026 | Expansão da regra de paginação paralela para Vendas, Clientes, Entregas e Fechamentos | Sistema |

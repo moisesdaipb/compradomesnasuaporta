@@ -156,13 +156,32 @@ export const fetchBasketModels = async (): Promise<BasketModel[]> => {
 };
 
 export const fetchCustomers = async (): Promise<Customer[]> => {
-  const { data, error } = await supabase
-    .from('customers')
-    .select('*')
-    .order('name');
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let from = 0;
+  let hasMore = true;
 
-  if (error) throw error;
-  return (data || []).map(c => ({
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .order('name', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    
+    const rows = data || [];
+    allData = allData.concat(rows);
+    
+    if (rows.length < PAGE_SIZE) {
+      hasMore = false;
+    } else {
+      from += PAGE_SIZE;
+    }
+  }
+
+  return allData.map(c => ({
     id: c.id,
     name: c.name,
     cpf: c.cpf,
@@ -338,12 +357,32 @@ export const deleteTeamMember = async (id: string) => {
 };
 
 export const fetchSales = async (): Promise<Sale[]> => {
-  const { data, error } = await supabase
-    .from('sales')
-    .select('*, sale_items(*)');
+  const PAGE_SIZE = 500; // Smaller page size due to table join
+  let allData: any[] = [];
+  let from = 0;
+  let hasMore = true;
 
-  if (error) throw error;
-  return (data || []).map(s => ({
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*, sale_items(*)')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    
+    const rows = data || [];
+    allData = allData.concat(rows);
+    
+    if (rows.length < PAGE_SIZE) {
+      hasMore = false;
+    } else {
+      from += PAGE_SIZE;
+    }
+  }
+
+  return allData.map(s => ({
     id: s.id,
     customerId: s.customer_id,
     customerName: s.customer_name,
@@ -369,12 +408,32 @@ export const fetchSales = async (): Promise<Sale[]> => {
 };
 
 export const fetchDeliveries = async (): Promise<Delivery[]> => {
-  const { data, error } = await supabase
-    .from('deliveries')
-    .select('*');
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let from = 0;
+  let hasMore = true;
 
-  if (error) throw error;
-  return (data || []).map(d => ({
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('deliveries')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    
+    const rows = data || [];
+    allData = allData.concat(rows);
+    
+    if (rows.length < PAGE_SIZE) {
+      hasMore = false;
+    } else {
+      from += PAGE_SIZE;
+    }
+  }
+
+  return allData.map(d => ({
     id: d.id,
     saleId: d.sale_id,
     customerId: d.customer_id,
@@ -403,6 +462,7 @@ export const fetchInstallments = async (): Promise<Installment[]> => {
       .from('installments')
       .select('*')
       .order('due_date', { ascending: true })
+      .order('id', { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
 
     if (error) throw error;
@@ -445,25 +505,46 @@ export const fetchInstallments = async (): Promise<Installment[]> => {
 };
 
 export const fetchDailyClosings = async (): Promise<DailyClosing[]> => {
+  const PAGE_SIZE = 1000;
+  
   // 1. Fetch closings
-  const { data: closings, error: closingsError } = await supabase
-    .from('daily_closings')
-    .select('*')
-    .limit(10000)
-    .order('created_at', { ascending: false });
-
-  if (closingsError) throw closingsError;
+  let allClosings: any[] = [];
+  let fromClosings = 0;
+  let hasMoreClosings = true;
+  while (hasMoreClosings) {
+    const { data, error } = await supabase
+      .from('daily_closings')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(fromClosings, fromClosings + PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = data || [];
+    allClosings = allClosings.concat(rows);
+    if (rows.length < PAGE_SIZE) hasMoreClosings = false;
+    else fromClosings += PAGE_SIZE;
+  }
 
   // 2. Fetch all receipts to link sales
-  const { data: receipts, error: receiptsError } = await supabase
-    .from('daily_receipts')
-    .select('*')
-    .limit(10000);
+  let allReceipts: any[] = [];
+  let fromReceipts = 0;
+  let hasMoreReceipts = true;
+  while (hasMoreReceipts) {
+    const { data, error } = await supabase
+      .from('daily_receipts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(fromReceipts, fromReceipts + PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = data || [];
+    allReceipts = allReceipts.concat(rows);
+    if (rows.length < PAGE_SIZE) hasMoreReceipts = false;
+    else fromReceipts += PAGE_SIZE;
+  }
 
-  if (receiptsError) throw receiptsError;
-
-  return (closings || []).map(c => {
-    const closingReceipts = (receipts || []).filter(r => r.closing_id === c.id);
+  return allClosings.map(c => {
+    const closingReceipts = allReceipts.filter(r => r.closing_id === c.id);
     return {
       id: c.id,
       sellerId: c.seller_id,
