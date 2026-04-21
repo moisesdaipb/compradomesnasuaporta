@@ -114,13 +114,14 @@ const CustomerRegisterView: React.FC<CustomerRegisterViewProps> = ({
         const query = searchQuery.toLowerCase();
         const cleanQuery = searchQuery.replace(/\D/g, '');
         const cleanCpf = (c.cpf || '').replace(/\D/g, '');
+        const cleanPhone = (c.phone || '').replace(/\D/g, '');
         
         return (
             (c.name || '').toLowerCase().includes(query) ||
-            (cleanCpf && cleanQuery && cleanCpf.includes(cleanQuery)) ||
+            (cleanQuery && cleanCpf.includes(cleanQuery)) ||
+            (cleanQuery && cleanPhone.includes(cleanQuery)) ||
             (c.cpf || '').includes(searchQuery) ||
             (c.phone || '').includes(searchQuery) ||
-            (c.phone || '').replace(/\D/g, '').includes(cleanQuery) ||
             (c.email || '').toLowerCase().includes(query) ||
             (c.tags || []).some(t => t.customLabel?.toLowerCase().includes(query))
         );
