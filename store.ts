@@ -533,7 +533,6 @@ export const fetchDailyClosings = async (): Promise<DailyClosing[]> => {
     const { data, error } = await supabase
       .from('daily_receipts')
       .select('*')
-      .order('created_at', { ascending: false })
       .order('id', { ascending: true })
       .range(fromReceipts, fromReceipts + PAGE_SIZE - 1);
     if (error) throw error;
