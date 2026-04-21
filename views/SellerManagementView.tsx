@@ -84,19 +84,24 @@ const SellerManagementView: React.FC<SellerManagementViewProps> = ({
             .filter(c => c.status === ClosingStatus.APPROVED && c.closingDate >= dateRange.start && c.closingDate <= dateRange.end)
             .reduce((acc, c) => acc + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0);
 
-        // Pendente de Entrega (Current "In Hand" - Financial accountability includes DELIVERIES)
-        const totalReceived = sellerSales
-            .filter(s => s.paymentMethod !== PaymentMethod.TERM && s.status !== OrderStatus.CANCELLED)
-            .reduce((acc, s) => acc + s.total, 0) +
-            sellerInstallments
-                .filter(i => i.status === InstallmentStatus.PAID)
-                .reduce((acc, i) => acc + i.amount, 0);
+        // Get all closed IDs to know what has already been submitted
+        const closedSalesIds = new Set<string>();
+        const closedInstIds = new Set<string>();
+        sellerClosings.filter(c => c.status !== ClosingStatus.REJECTED).forEach(c => {
+            c.salesIds?.forEach(id => closedSalesIds.add(id));
+            c.installmentIds?.forEach(id => closedInstIds.add(id));
+        });
 
-        const totalSubmitted = sellerClosings
-            .filter(c => c.status !== ClosingStatus.REJECTED)
-            .reduce((acc, c) => acc + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0);
+        // Pendente de Entrega (Current "In Hand" - only calculating items NOT YET SUBMITTED)
+        const inHandSales = sellerSales
+            .filter(s => s.paymentMethod !== PaymentMethod.TERM && s.status !== OrderStatus.CANCELLED && !closedSalesIds.has(s.id))
+            .reduce((acc, s) => acc + s.total, 0);
+            
+        const inHandInstallments = sellerInstallments
+            .filter(i => i.status === InstallmentStatus.PAID && !closedInstIds.has(i.id))
+            .reduce((acc, i) => acc + i.amount, 0);
 
-        const inHand = Math.max(0, totalReceived - totalSubmitted);
+        const inHand = inHandSales + inHandInstallments;
 
         // Installment metrics (All time pending)
         const today = new Date();
