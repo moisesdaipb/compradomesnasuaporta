@@ -150,7 +150,7 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
     const getOrderConfig = (status: OrderStatus) => {
         switch (status) {
             case OrderStatus.PENDING: return { color: 'bg-yellow-500', label: 'Pendente' };
-            case OrderStatus.OUT_FOR_DELIVERY: return { color: 'bg-blue-500', label: 'Em Rota' };
+            case OrderStatus.IN_DELIVERY: return { color: 'bg-blue-500', label: 'Em Entrega' };
             case OrderStatus.DELIVERED: return { color: 'bg-success', label: 'Entregue' };
             case OrderStatus.CANCELLED: return { color: 'bg-danger', label: 'Cancelado' };
             default: return { color: 'bg-slate-500', label: 'Desconhecido' };
@@ -492,6 +492,9 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                                         <span className="material-symbols-outlined text-xs">groups</span>
                                         {selectedSale.customerName}
                                     </p>
+                                    <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">
+                                        {customers.find(c => c.id === selectedSale.customerId)?.address || 'Endereço não cadastrado'}
+                                    </p>
                                 </div>
                                 <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-700/50">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Pagamento</p>
@@ -502,6 +505,55 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                                     <p className="text-xs font-black text-primary mt-1">Total R$ {selectedSale.total.toFixed(2)}</p>
                                 </div>
                             </div>
+
+                            {/* Installments Breakdown */}
+                            {selectedSale.paymentMethod === PaymentMethod.TERM && (
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-700/50">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Parcelas e Vencimentos</h4>
+                                    <div className="space-y-2">
+                                        {installments
+                                            .filter(i => i.saleId === selectedSale.id)
+                                            .sort((a, b) => a.number - b.number)
+                                            .map((inst, idx) => {
+                                                let st = inst.status;
+                                                if (typeof st === 'string') {
+                                                    const s = st.toLowerCase().trim();
+                                                    if (s === 'pago' || s === 'paid') st = InstallmentStatus.PAID;
+                                                    else if (s === 'atrasado' || s === 'overdue') st = InstallmentStatus.OVERDUE;
+                                                    else if (s === 'pendente' || s === 'pending') st = InstallmentStatus.PENDING;
+                                                    else if (s === 'cancelado' || s === 'cancelled') st = InstallmentStatus.CANCELLED;
+                                                }
+                                                const isOverdue = st === InstallmentStatus.PENDING && inst.dueDate < Date.now();
+                                                const finalStatus = isOverdue ? InstallmentStatus.OVERDUE : st;
+
+                                                return (
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                                        <div>
+                                                            <p className="font-bold text-sm text-slate-900 dark:text-white">{inst.number}ª Parcela</p>
+                                                            <p className={`text-xs font-bold ${isOverdue ? 'text-danger' : 'text-slate-500'}`}>
+                                                                {new Date(inst.dueDate).toLocaleDateString('pt-BR')}
+                                                            </p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="font-black text-primary">R$ {inst.amount.toFixed(2)}</p>
+                                                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                                                finalStatus === InstallmentStatus.PAID ? 'bg-success/10 text-success' :
+                                                                finalStatus === InstallmentStatus.OVERDUE ? 'bg-danger/10 text-danger' :
+                                                                finalStatus === InstallmentStatus.CANCELLED ? 'bg-slate-500/10 text-slate-500' :
+                                                                'bg-yellow-500/10 text-yellow-600'
+                                                            }`}>
+                                                                {finalStatus === InstallmentStatus.PAID ? 'Pago' :
+                                                                 finalStatus === InstallmentStatus.OVERDUE ? 'Atrasada' : 
+                                                                 finalStatus === InstallmentStatus.CANCELLED ? 'Cancelada' : 'Pendente'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
                     </div>
                 </div>
