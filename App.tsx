@@ -1978,6 +1978,7 @@ const App: React.FC = () => {
       case 'installments':
         return (
           <InstallmentsView
+            basketModels={appData.basketModels}
             installments={appData.installments}
             sales={appData.sales}
             customers={appData.customers}

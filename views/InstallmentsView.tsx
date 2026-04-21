@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { ViewState, Installment, InstallmentStatus, PaymentMethod, Sale, OrderStatus, Customer, DailyClosing } from '../types';
+import { ViewState, Installment, InstallmentStatus, PaymentMethod, Sale, OrderStatus, Customer, DailyClosing, BasketModel } from '../types';
 import PartialPaymentModal from '../components/PartialPaymentModal';
 import { normalizeText } from '../utils';
 
 interface InstallmentsViewProps {
+    basketModels: BasketModel[];
     installments: Installment[];
     sales: Sale[];
     userRole: string;
@@ -20,6 +21,7 @@ interface InstallmentsViewProps {
 }
 
 const InstallmentsView: React.FC<InstallmentsViewProps> = ({
+    basketModels,
     installments,
     sales,
     userRole,
@@ -39,6 +41,7 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
     const [payingId, setPayingId] = useState<string | null>(null);
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
     const [partialPaymentInst, setPartialPaymentInst] = useState<Installment | null>(null);
+    const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
 
     // Update overdue status
     const today = Date.now();
@@ -144,6 +147,16 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
         }
     };
 
+    const getOrderConfig = (status: OrderStatus) => {
+        switch (status) {
+            case OrderStatus.PENDING: return { color: 'bg-yellow-500', label: 'Pendente' };
+            case OrderStatus.OUT_FOR_DELIVERY: return { color: 'bg-blue-500', label: 'Em Rota' };
+            case OrderStatus.DELIVERED: return { color: 'bg-success', label: 'Entregue' };
+            case OrderStatus.CANCELLED: return { color: 'bg-danger', label: 'Cancelado' };
+            default: return { color: 'bg-slate-500', label: 'Desconhecido' };
+        }
+    };
+
     return (
         <div className="flex flex-col h-full animate-in fade-in duration-300">
             {/* Header */}
@@ -241,7 +254,8 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                         return (
                             <div
                                 key={`${installment.id}-${idx}`}
-                                className={`bg-white dark:bg-slate-800 p-4 rounded-xl border transition-all ${installment.status === InstallmentStatus.OVERDUE
+                                onClick={() => setSelectedSale(sales.find(s => s.id === installment.saleId) || null)}
+                                className={`bg-white dark:bg-slate-800 p-4 rounded-xl border transition-all cursor-pointer hover:border-primary/30 active:scale-[0.98] ${installment.status === InstallmentStatus.OVERDUE
                                     ? 'border-danger/30'
                                     : 'border-slate-100 dark:border-slate-700'
                                     }`}
@@ -249,11 +263,14 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                                 <div className="flex items-start justify-between mb-3">
                                     <div>
                                         <p className="font-bold">{installment.customerName}</p>
-                                        <p className="text-xs text-slate-500">
+                                        <p className="text-[10px] text-slate-500 font-medium line-clamp-1">
+                                            {customers.find(c => c.id === installment.customerId)?.address || ''}
+                                        </p>
+                                        <p className="text-xs text-slate-400 mt-0.5">
                                             Parcela {installment.number}/{installment.totalInstallments}
                                         </p>
                                     </div>
-                                    <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${statusConfig.bg} ${statusConfig.text}`}>
+                                    <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase shrink-0 ${statusConfig.bg} ${statusConfig.text}`}>
                                         {statusConfig.label}
                                     </span>
                                 </div>
@@ -275,7 +292,7 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                                 {installment.status !== InstallmentStatus.PAID && (
                                     <div className="mt-3 space-y-2">
                                         {payingId === installment.id ? (
-                                            <>
+                                            <div onClick={(e) => e.stopPropagation()}>
                                                 {selectedMethod ? (
                                                     <div className="p-3 bg-primary/5 dark:bg-primary/10 rounded-2xl border-2 border-primary/20 animate-in zoom-in-95 duration-200">
                                                         <p className="text-[10px] font-black uppercase text-primary text-center mb-2 tracking-widest">Confirmar Recebimento</p>
@@ -340,10 +357,11 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                                                             </button>
                                                     </div>
                                                 )}
-                                            </>
+                                            </div>
                                         ) : (
                                             <button
-                                                onClick={() => {
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
                                                     setPayingId(installment.id);
                                                     setSelectedMethod(null);
                                                 }}
@@ -385,15 +403,108 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
 
             {/* Partial Payment Modal */}
             {partialPaymentInst && (
-                <PartialPaymentModal
-                    sale={sales.find(s => s.id === partialPaymentInst.saleId)!}
-                    installment={partialPaymentInst}
-                    allInstallments={installments}
-                    paymentMethod={selectedMethod}
-                    sellerId={sellerId}
-                    onClose={() => setPartialPaymentInst(null)}
-                    onSave={onUpdateInstallments}
-                />
+                <div onClick={(e) => e.stopPropagation()}>
+                    <PartialPaymentModal
+                        sale={sales.find(s => s.id === partialPaymentInst.saleId)!}
+                        installment={partialPaymentInst}
+                        allInstallments={installments}
+                        paymentMethod={selectedMethod}
+                        sellerId={sellerId}
+                        onClose={() => setPartialPaymentInst(null)}
+                        onSave={onUpdateInstallments}
+                    />
+                </div>
+            )}
+
+            {/* Detailed Order Modal */}
+            {selectedSale && (
+                <div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedSale(null)} />
+
+                    <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-[40px] sm:rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in slide-in-from-bottom-10 duration-500">
+                        <div className="p-8 pb-4 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white">Detalhes do Pedido</h3>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">#{selectedSale.id.slice(0, 12)}</p>
+                                    <div className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase text-white ${getOrderConfig(selectedSale.status).color}`}>
+                                        {getOrderConfig(selectedSale.status).label}
+                                    </div>
+                                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                                        <span className="material-symbols-outlined text-xs">schedule</span>
+                                        {new Date(selectedSale.createdAt).toLocaleString('pt-BR')}
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setSelectedSale(null)}
+                                className="size-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center active:scale-95 transition-all text-slate-500"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-8 pt-2 space-y-8 scrollbar-hide no-scrollbar">
+                            <div>
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Itens do Pedido</h4>
+                                <div className="space-y-4">
+                                    {selectedSale.items.map((item, idx) => {
+                                        const model = basketModels.find(m => m.id === item.basketModelId);
+                                        return (
+                                            <div key={idx} className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-700/50 flex gap-5">
+                                                {model?.image ? (
+                                                    <img src={model.image} alt={item.basketName} className="size-24 rounded-2xl object-cover shadow-md bg-white border-2 border-white dark:border-slate-700" />
+                                                ) : (
+                                                    <div className="size-24 rounded-2xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0">
+                                                        <span className="material-symbols-outlined text-slate-400 text-3xl">shopping_basket</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 py-1">
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <h5 className="font-black text-slate-900 dark:text-white leading-tight">{item.basketName}</h5>
+                                                        <p className="text-xs font-black text-primary bg-primary/10 px-2 py-1 rounded-lg">x{item.quantity}</p>
+                                                    </div>
+                                                    <p className="font-bold text-sm text-slate-700 dark:text-slate-300">R$ {item.unitPrice.toFixed(2)} unit.</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-700/50">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Venda Realizada Por</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white truncate">
+                                        {selectedSale.sellerName ? (
+                                            <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                                                <span className="material-symbols-outlined text-sm">person</span>
+                                                {selectedSale.sellerName}
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-1.5 text-success">
+                                                <span className="material-symbols-outlined text-sm">shopping_cart</span>
+                                                Loja Online
+                                            </span>
+                                        )}
+                                    </p>
+                                    <p className="text-[11px] font-bold text-slate-500 mt-2 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-xs">groups</span>
+                                        {selectedSale.customerName}
+                                    </p>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-700/50">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Pagamento</p>
+                                    <div className="flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-sm text-primary">payments</span>
+                                        <p className="text-sm font-black text-slate-900 dark:text-white">{selectedSale.paymentMethod}</p>
+                                    </div>
+                                    <p className="text-xs font-black text-primary mt-1">Total R$ {selectedSale.total.toFixed(2)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
