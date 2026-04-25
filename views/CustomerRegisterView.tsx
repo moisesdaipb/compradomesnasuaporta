@@ -111,20 +111,22 @@ const CustomerRegisterView: React.FC<CustomerRegisterViewProps> = ({
     };
 
     const filteredCustomers = customers.filter(c => {
-        const query = searchQuery.toLowerCase();
+        if (!searchQuery) return true;
+        
+        const query = searchQuery.toLowerCase().trim();
         const cleanQuery = searchQuery.replace(/\D/g, '');
         const cleanCpf = (c.cpf || '').replace(/\D/g, '');
         const cleanPhone = (c.phone || '').replace(/\D/g, '');
         
-        return (
-            (c.name || '').toLowerCase().includes(query) ||
-            (cleanQuery && cleanCpf.includes(cleanQuery)) ||
-            (cleanQuery && cleanPhone.includes(cleanQuery)) ||
-            (c.cpf || '').includes(searchQuery) ||
-            (c.phone || '').includes(searchQuery) ||
-            (c.email || '').toLowerCase().includes(query) ||
-            (c.tags || []).some(t => t.customLabel?.toLowerCase().includes(query))
-        );
+        const matchName = (c.name || '').toLowerCase().includes(query);
+        const matchCpfClean = cleanQuery.length > 0 && cleanCpf.includes(cleanQuery);
+        const matchPhoneClean = cleanQuery.length > 0 && cleanPhone.includes(cleanQuery);
+        const matchCpfRaw = (c.cpf || '').includes(searchQuery);
+        const matchPhoneRaw = (c.phone || '').includes(searchQuery);
+        const matchEmail = (c.email || '').toLowerCase().includes(query);
+        const matchTags = (c.tags || []).some(t => (t.customLabel || '').toLowerCase().includes(query));
+
+        return matchName || matchCpfClean || matchPhoneClean || matchCpfRaw || matchPhoneRaw || matchEmail || matchTags;
     });
 
     const formatCPF = (value: string) => {

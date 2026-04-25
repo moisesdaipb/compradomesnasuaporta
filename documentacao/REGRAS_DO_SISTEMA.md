@@ -147,6 +147,28 @@ As seguintes buscas/tabelas já operam nativamente imunes ao limite de 1000 linh
 
 ---
 
+## 3. Reatribuicão de Clientes em Massa
+
+### Resumo
+O sistema permite a transferência em lote de todos os clientes vinculados a um vendedor para outro colaborador. Esta funcionalidade é exclusiva para o perfil de **Gerente** e destina-se a facilitar transições de equipe ou saídas de funcionários.
+
+### Regras de Negócio
+1. **Responsabilidade**: Ao reatribuir, o campo `createdBy` do cliente é alterado para o ID do novo vendedor.
+2. **Impacto**: O novo vendedor passa a "possuir" o cliente para fins de novos pedidos e visibilidade (se aplicável).
+3. **Segurança**: A operação é realizada via RPC (`reassign_customers`) para garantir que todos os registros sejam atualizados de forma atômica ou nenhum seja alterado em caso de erro.
+
+### Implementação
+**Arquivo:** `views/TeamView.tsx` — Função `handleReassign`
+**Backend:** RPC `reassign_customers`
+
+```sql
+UPDATE customers
+SET created_by = p_target_seller_id
+WHERE created_by = p_source_seller_id;
+```
+
+---
+
 ## Histórico de Atualizações
 
 | Data | Regra | Autor |
@@ -154,3 +176,4 @@ As seguintes buscas/tabelas já operam nativamente imunes ao limite de 1000 linh
 | 20/04/2026 | Documentada regra de cancelamento por perfil | Sistema |
 | 20/04/2026 | Adicionada regra de Estabilidade de Paginação (Supabase) | Sistema |
 | 20/04/2026 | Expansão da regra de paginação paralela para Vendas, Clientes, Entregas e Fechamentos | Sistema |
+| 24/04/2026 | Implementada funcionalidade e regra de Reatribuição de Clientes em Massa | Sistema |

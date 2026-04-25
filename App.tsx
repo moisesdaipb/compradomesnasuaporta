@@ -99,6 +99,7 @@ import {
   fetchCorporateCustomers,
   upsertCorporateCustomer,
   deleteCorporateCustomer,
+  reassignCustomers,
 } from './store';
 import { supabase } from './supabase';
 import { formatCurrency, validateCPF, isValidEmail } from './utils';
@@ -453,9 +454,26 @@ const App: React.FC = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'profiles' },
-        () => {
-          console.log('[App] Real-time profiles update received');
+        (payload: any) => {
+          console.log('[App] Real-time profiles update received:', payload);
           triggerRefresh(500);
+
+          // If the current user's profile was updated, sync the session
+          if (sessionRef.current && payload.new && payload.new.id === sessionRef.current.id) {
+            const newStatus = payload.new.status;
+            const newRole = payload.new.role;
+
+            if (newStatus !== sessionRef.current.status || newRole !== sessionRef.current.role) {
+              console.log('[App] Current user profile changed (Status:', newStatus, 'Role:', newRole, '), updating session...');
+              handleLogin({
+                ...sessionRef.current,
+                role: newRole,
+                status: newStatus,
+                name: payload.new.name || sessionRef.current.name,
+                avatar: payload.new.avatar || sessionRef.current.avatar
+              });
+            }
+          }
         }
       )
       .subscribe((status) => {
@@ -496,12 +514,23 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogin = useCallback((userSession: UserSession) => {
-    console.log('[App] handleLogin triggered for:', userSession.email, 'Role:', userSession.role);
-    setSession(userSession);
-    saveSession(userSession);
+    console.log('[App] handleLogin triggered for:', userSession.email, 'Role:', userSession.role, 'Status:', userSession.status);
+    
+    // REQUIREMENT: If inactive, force to 'cliente' role and view
+    const isInactive = userSession.status === 'inativo';
+    const effectiveRole = isInactive ? 'cliente' : userSession.role;
+    
+    const finalSession = {
+      ...userSession,
+      role: effectiveRole as UserRole
+    };
 
-    console.log('[App] Setting view for role:', userSession.role);
-    switch (userSession.role) {
+    setSession(finalSession);
+    saveSession(finalSession);
+
+    console.log('[App] Setting view for role:', finalSession.role, isInactive ? '(FORCED DUE TO INACTIVITY)' : '');
+    
+    switch (finalSession.role) {
       case 'cliente':
         setView('customer-store');
         break;
@@ -515,7 +544,7 @@ const App: React.FC = () => {
         setView('dashboard');
         break;
       default:
-        console.warn('[App] Unknown role, defaulting to dashboard:', userSession.role);
+        console.warn('[App] Unknown role, defaulting to dashboard:', finalSession.role);
         setView('dashboard');
     }
   }, []);
@@ -678,6 +707,7 @@ const App: React.FC = () => {
               name: profile.name,
               email: profile.email || '',
               role: profile.role,
+              status: profile.status,
               avatar: profile.avatar,
               provider: supabaseSession.user.app_metadata.provider,
               access_token: supabaseSession.access_token
@@ -742,6 +772,7 @@ const App: React.FC = () => {
             name: profile.name,
             email: profile.email || '',
             role: profile.role,
+            status: profile.status,
             avatar: profile.avatar,
             provider: supabaseSession.user.app_metadata.provider,
             access_token: supabaseSession.access_token
@@ -1675,6 +1706,19 @@ const App: React.FC = () => {
       throw e;
     }
   }, [triggerRefresh]);
+  const handleReassignCustomers = useCallback(async (sourceSellerId: string, targetSellerId: string) => {
+    try {
+      setLoadingStatus('Reatribuindo clientes...');
+      await reassignCustomers(sourceSellerId, targetSellerId);
+      triggerRefresh(100);
+    } catch (e: any) {
+      console.error('[App] handleReassignCustomers error:', e);
+      alert('Erro ao reatribuir clientes: ' + e.message);
+      throw e;
+    } finally {
+      setLoadingStatus('Sincronizado');
+    }
+  }, [triggerRefresh]);
 
   const handleUpdateSalePaymentMethod = useCallback(async (saleId: string, method: PaymentMethod) => {
     try {
@@ -1835,9 +1879,52 @@ const App: React.FC = () => {
         return (
           <TeamView
             team={appData.team}
-            onUpdateTeam={() => triggerRefresh(100)}
+            onAddMember={async (member) => {
+              await upsertTeamMember(member);
+              triggerRefresh(100);
+            }}
+            onUpdateMember={async (id, updates) => {
+              const current = appData.team.find(m => m.id === id);
+              if (current) {
+                // REQUIREMENT: If status is being changed to inativo, force role to cliente
+                let finalUpdates = { ...updates };
+                if (updates.status === 'inativo') {
+                  finalUpdates.role = 'cliente' as any;
+                }
+                
+                await upsertTeamMember({ ...current, ...finalUpdates, id });
+                triggerRefresh(100);
+              }
+            }}
+            onToggleStatus={async (id) => {
+              try {
+                const current = appData.team.find(m => m.id === id);
+                if (current) {
+                  const newStatus = current.status === 'ativo' ? 'inativo' : 'ativo';
+                  // REQUIREMENT: If inactivating, change role to 'cliente' for total security
+                  const newRole = newStatus === 'inativo' ? 'cliente' : current.role;
+                  
+                  await upsertTeamMember({ ...current, status: newStatus, role: newRole as any });
+                  triggerRefresh(100);
+                }
+              } catch (e: any) {
+                alert('Erro ao alterar status: ' + e.message);
+              }
+            }}
+            onDeleteMember={async (id) => {
+              if (window.confirm('Tem certeza que deseja excluir este membro da equipe permanentemente?')) {
+                try {
+                  await deleteTeamMember(id);
+                  triggerRefresh(100);
+                } catch (e: any) {
+                  alert('Erro ao excluir membro: ' + e.message);
+                }
+              }
+            }}
             setView={setView}
+            onSelectAuditSeller={setSelectedAuditSellerId}
             onStartImpersonation={handleStartImpersonation}
+            onReassignCustomers={handleReassignCustomers}
           />
         );
 

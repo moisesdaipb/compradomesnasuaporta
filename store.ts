@@ -257,7 +257,7 @@ export const fetchTeamMembers = async (): Promise<TeamMember[]> => {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .in('role', ['vendedor', 'entregador']);
+    .or('role.in.(vendedor,entregador),status.eq.inativo');
 
   if (error) throw error;
   return (data || []).map(p => ({
@@ -700,6 +700,24 @@ export const upsertCustomerProfile = async (customer: Partial<Customer> & { avat
     console.error('[store] upsertCustomerProfile failed:', err);
     throw err;
   }
+};
+
+export const reassignCustomers = async (sourceSellerId: string, targetSellerId: string) => {
+  const { data, error } = await supabase.rpc('reassign_customers', {
+    p_source_seller_id: sourceSellerId,
+    p_target_seller_id: targetSellerId
+  });
+
+  if (error) {
+    console.error('[store] reassign_customers error:', error);
+    throw error;
+  }
+
+  if (data && data.success === false) {
+    throw new Error(data.error || 'Erro ao reatribuir clientes.');
+  }
+
+  return data;
 };
 
 export const updateDeliveryStatus = async (id: string, status: DeliveryStatus, notes?: string) => {

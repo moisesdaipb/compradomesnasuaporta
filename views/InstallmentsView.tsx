@@ -490,7 +490,7 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
                                     </p>
                                     <p className="text-[11px] font-bold text-slate-500 mt-2 flex items-center gap-1">
                                         <span className="material-symbols-outlined text-xs">groups</span>
-                                        {selectedSale.customerName}
+                                        {selectedSale.customerName} {customers.find(c => c.id === selectedSale.customerId)?.cpf && <span className="font-medium text-[10px] ml-1 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded-md">CPF: {customers.find(c => c.id === selectedSale.customerId)?.cpf}</span>}
                                     </p>
                                     <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">
                                         {customers.find(c => c.id === selectedSale.customerId)?.address || 'Endereço não cadastrado'}

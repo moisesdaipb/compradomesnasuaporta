@@ -353,6 +353,7 @@ export interface UserSession {
   name: string;
   email: string;
   role: UserRole;
+  status?: 'ativo' | 'inativo' | 'pendente';
   avatar?: string;
   provider?: string;
   access_token?: string;

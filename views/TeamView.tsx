@@ -11,6 +11,7 @@ interface TeamViewProps {
     setView: (v: ViewState) => void;
     onSelectAuditSeller?: (sellerId: string) => void;
     onStartImpersonation?: (sellerId: string) => void;
+    onReassignCustomers?: (sourceSellerId: string, targetSellerId: string) => Promise<any>;
 }
 
 const TeamView: React.FC<TeamViewProps> = ({ 
@@ -21,7 +22,8 @@ const TeamView: React.FC<TeamViewProps> = ({
     onDeleteMember, 
     setView, 
     onSelectAuditSeller,
-    onStartImpersonation
+    onStartImpersonation,
+    onReassignCustomers
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -30,6 +32,9 @@ const TeamView: React.FC<TeamViewProps> = ({
     const [filter, setFilter] = useState<'todos' | 'vendedor' | 'entregador'>('todos');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [conflictError, setConflictError] = useState<string | null>(null);
+    const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+    const [targetSellerId, setTargetSellerId] = useState<string>('');
+    const [isReassigning, setIsReassigning] = useState(false);
 
     const [newMember, setNewMember] = useState({
         name: '',
@@ -128,6 +133,23 @@ https://cesta-basica-app.vercel.app/register?cpf=${member.cpf.replace(/\D/g, '')
         const url = `https://wa.me/${member.phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`;
         window.open(url, '_blank');
         setSelectedMember(null);
+    };
+
+    const handleReassign = async () => {
+        if (!selectedMember || !targetSellerId || !onReassignCustomers) return;
+
+        setIsReassigning(true);
+        try {
+            const result = await onReassignCustomers(selectedMember.id, targetSellerId);
+            alert(`${result.customersUpdated} clientes reatribuídos com sucesso!`);
+            setIsReassignModalOpen(false);
+            setTargetSellerId('');
+            setSelectedMember(null);
+        } catch (error: any) {
+            alert('Erro ao reatribuir clientes: ' + error.message);
+        } finally {
+            setIsReassigning(false);
+        }
     };
 
     return (
@@ -315,6 +337,18 @@ https://cesta-basica-app.vercel.app/register?cpf=${member.cpf.replace(/\D/g, '')
                                 </button>
                             )}
 
+                            {selectedMember.role === 'vendedor' && onReassignCustomers && (
+                                <button
+                                    onClick={() => {
+                                        setIsReassignModalOpen(true);
+                                    }}
+                                    className="w-full h-12 bg-purple-50 text-purple-700 dark:bg-purple-900/20 rounded-xl flex items-center gap-3 px-5 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 hover:bg-purple-100 dark:hover:bg-purple-900/40"
+                                >
+                                    <span className="material-symbols-outlined text-xl">move_up</span>
+                                    Reatribuir Clientes (Fim de Contrato)
+                                </button>
+                            )}
+
                             {selectedMember.status === 'pendente' && (
                                 <button
                                     onClick={() => handleShareInvite(selectedMember)}
@@ -485,7 +519,77 @@ https://cesta-basica-app.vercel.app/register?cpf=${member.cpf.replace(/\D/g, '')
                     </div>
                 </div>
             )}
+
+            {/* Reassign Customers Modal */}
+            {isReassignModalOpen && selectedMember && (
+                <div className="fixed inset-0 z-[500] flex items-end justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !isReassigning && setIsReassignModalOpen(false)} />
+
+                    <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-[40px] sm:rounded-[40px] shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-10 duration-500">
+                        <div className="p-8 pb-4 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white">Reatribuir Clientes</h3>
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Transferência de Carteira</p>
+                            </div>
+                            <button onClick={() => setIsReassignModalOpen(false)} className="size-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        <div className="px-8 py-4 space-y-6">
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/50 p-4 rounded-2xl">
+                                <p className="text-amber-700 dark:text-amber-400 text-[11px] font-bold leading-relaxed">
+                                    Esta ação moverá <strong>TODOS</strong> os clientes vinculados a <strong>{selectedMember.name}</strong> para um novo vendedor. Esta operação é irreversível em massa.
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block ml-1">Vendedor de Destino (Quem assume os clientes?)</label>
+                                <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
+                                    {team.filter(m => m.role === 'vendedor' && m.id !== selectedMember.id && m.status === 'ativo').map(m => (
+                                        <button
+                                            key={m.id}
+                                            onClick={() => setTargetSellerId(m.id)}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${targetSellerId === m.id ? 'bg-primary border-primary text-white' : 'bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300'}`}
+                                        >
+                                            <div className={`size-10 rounded-lg flex items-center justify-center ${targetSellerId === m.id ? 'bg-white/20' : 'bg-white dark:bg-slate-700'}`}>
+                                                <span className="material-symbols-outlined text-xl">person</span>
+                                            </div>
+                                            <div className="text-left min-w-0 flex-1">
+                                                <p className="text-xs font-black leading-tight truncate">{m.name}</p>
+                                                <p className={`text-[9px] font-bold opacity-60 ${targetSellerId === m.id ? 'text-white' : 'text-slate-400'}`}>{m.phone}</p>
+                                            </div>
+                                            {targetSellerId === m.id && (
+                                                <span className="material-symbols-outlined ml-auto">check_circle</span>
+                                            )}
+                                        </button>
+                                    ))}
+                                    {team.filter(m => m.role === 'vendedor' && m.id !== selectedMember.id && m.status === 'ativo').length === 0 && (
+                                        <p className="text-[10px] text-slate-400 font-bold text-center py-4">Nenhum outro vendedor ativo encontrado.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-8 pb-10 border-t border-slate-100 dark:border-slate-800">
+                            <button
+                                onClick={handleReassign}
+                                disabled={isReassigning || !targetSellerId}
+                                className={`w-full h-16 rounded-[24px] font-black text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all ${!isReassigning && targetSellerId ? 'bg-primary text-white shadow-xl shadow-primary/20 active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                            >
+                                {isReassigning ? (
+                                    <span className="animate-spin material-symbols-outlined">sync</span>
+                                ) : (
+                                    <span className="material-symbols-outlined">move_up</span>
+                                )}
+                                {isReassigning ? 'Reatribuindo...' : 'Confirmar Transferência'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
+
     );
 };
 
