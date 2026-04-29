@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ViewState, Sale, Installment, DailyClosing, SaleGoal, TeamMember, PaymentMethod, InstallmentStatus, ClosingStatus, OrderStatus, Delivery } from '../types';
+import { ViewState, Sale, Installment, DailyClosing, SaleGoal, TeamMember, PaymentMethod, InstallmentStatus, ClosingStatus, OrderStatus, Delivery, Customer } from '../types';
 
 interface SellerManagementViewProps {
     sales: Sale[];
@@ -10,6 +10,7 @@ interface SellerManagementViewProps {
     sellerId: string;
     sellerName: string;
     team: TeamMember[];
+    customers: Customer[];
     setView: (v: ViewState) => void;
 }
 
@@ -22,6 +23,7 @@ const SellerManagementView: React.FC<SellerManagementViewProps> = ({
     sellerId,
     sellerName,
     team,
+    customers,
     setView,
 }) => {
     const currentSeller = team.find(t => t.id === sellerId);
@@ -53,24 +55,6 @@ const SellerManagementView: React.FC<SellerManagementViewProps> = ({
         // ownSales: Only sales where the seller is the direct creator (for goals/performance)
         const ownSales = sales.filter(s => s.sellerId === sellerId);
 
-        // sellerSales: All sales the seller handles (direct + assigned deliveries) for FINANCIAL accountability
-        const sellerSales = sales.filter(s => {
-            if (s.sellerId === sellerId) return true;
-            const delivery = deliveries.find(d => d.saleId === s.id);
-            return delivery?.driverId === sellerId;
-        });
-
-        const sellerInstallments = installments.filter(i => {
-            const sale = sales.find(s => s.id === i.saleId);
-            if (!sale || sale.status === OrderStatus.CANCELLED) return false;
-            // Includes installments for their own sales AND for deliveries they performed
-            if (sale.sellerId === sellerId) return true;
-            const delivery = deliveries.find(d => d.saleId === i.saleId);
-            return delivery?.driverId === sellerId;
-        });
-
-        const sellerClosings = dailyClosings.filter(c => c.sellerId === sellerId);
-
         // Period Filtering (for Goals we only use OWN sales)
         const filteredOwnSales = ownSales.filter(s => s.createdAt >= dateRange.start && s.createdAt <= dateRange.end);
 
@@ -80,6 +64,7 @@ const SellerManagementView: React.FC<SellerManagementViewProps> = ({
             .reduce((acc, s) => acc + s.total, 0);
 
         // Entregue ao Gerente (Period Approval)
+        const sellerClosings = dailyClosings.filter(c => c.sellerId === sellerId);
         const totalDelivered = sellerClosings
             .filter(c => c.status === ClosingStatus.APPROVED && c.closingDate >= dateRange.start && c.closingDate <= dateRange.end)
             .reduce((acc, c) => acc + (c.cashAmount || 0) + (c.cardAmount || 0) + (c.pixAmount || 0), 0);
@@ -93,32 +78,53 @@ const SellerManagementView: React.FC<SellerManagementViewProps> = ({
         });
 
         // Pendente de Entrega (Current "In Hand" - only calculating items NOT YET SUBMITTED)
-        const inHandSales = sellerSales
-            .filter(s => s.paymentMethod !== PaymentMethod.TERM && s.status !== OrderStatus.CANCELLED && !closedSalesIds.has(s.id))
+        // Uses the exact same logic as DailyClosingView to match Fechar Caixa
+        const inHandSales = sales
+            .filter(s => {
+                if (s.status === OrderStatus.CANCELLED || s.paymentMethod === PaymentMethod.TERM || closedSalesIds.has(s.id)) return false;
+                const delivery = deliveries.find(d => d.saleId === s.id);
+                return s.sellerId === sellerId || delivery?.driverId === sellerId;
+            })
             .reduce((acc, s) => acc + s.total, 0);
             
-        const inHandInstallments = sellerInstallments
-            .filter(i => i.status === InstallmentStatus.PAID && !closedInstIds.has(i.id))
+        const inHandInstallments = installments
+            .filter(i => {
+                const sale = sales.find(s => s.id === i.saleId);
+                if (!sale || sale.status === OrderStatus.CANCELLED) return false;
+                const delivery = deliveries.find(d => d.saleId === i.saleId);
+                const isAssignedToMe = i.receivedBy === sellerId || 
+                    (!i.receivedBy && (sale.sellerId === sellerId || delivery?.driverId === sellerId));
+                return i.status === InstallmentStatus.PAID && !closedInstIds.has(i.id) && isAssignedToMe;
+            })
             .reduce((acc, i) => acc + i.amount, 0);
 
         const inHand = inHandSales + inHandInstallments;
+
+        // Parcelas que o vendedor tem a responsabilidade de COBRAR (Clientes dele ou transferidos para ele)
+        const collectibleInstallments = installments.filter(i => {
+            const sale = sales.find(s => s.id === i.saleId);
+            if (!sale || sale.status === OrderStatus.CANCELLED) return false;
+            const customer = customers.find(c => c.id === sale.customerId);
+            
+            return sale.sellerId === sellerId || customer?.createdBy === sellerId;
+        });
 
         // Installment metrics (All time pending)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const futureInstallments = sellerInstallments
+        const futureInstallments = collectibleInstallments
             .filter(i => i.status === InstallmentStatus.PENDING && i.dueDate >= today.getTime())
             .reduce((acc, i) => acc + i.amount, 0);
 
-        const overdueInstallments = sellerInstallments
+        const overdueInstallments = collectibleInstallments
             .filter(i => i.status === InstallmentStatus.PENDING && i.dueDate < today.getTime())
             .reduce((acc, i) => acc + i.amount, 0);
 
         // Week Installments
         const weekEnd = new Date(today);
         weekEnd.setDate(weekEnd.getDate() + 7);
-        const weekInstallments = sellerInstallments
+        const weekInstallments = collectibleInstallments
             .filter(i => i.status === InstallmentStatus.PENDING && i.dueDate >= today.getTime() && i.dueDate <= weekEnd.getTime())
             .sort((a, b) => a.dueDate - b.dueDate);
 

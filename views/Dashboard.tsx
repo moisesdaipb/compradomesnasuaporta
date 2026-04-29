@@ -259,15 +259,19 @@ const Dashboard: React.FC<DashboardProps> = ({
     installments.forEach(i => {
       if (i.status === InstallmentStatus.PAID && activeSaleIds.has(i.saleId) && !closedInstIds.has(i.id)) {
         const saleInfo = saleInfoMap.get(i.saleId);
-        if (!saleInfo || !saleInfo.sellerId) return;
+        const responsibleId = i.receivedBy || saleInfo?.sellerId;
+        if (!responsibleId) return;
 
-        const existing = sellerMap.get(saleInfo.sellerId);
+        const teamMember = team.find(t => t.id === responsibleId);
+        const responsibleName = teamMember?.name || (i.receivedBy ? 'Recebedor' : (saleInfo?.sellerName || 'Vendedor'));
+
+        const existing = sellerMap.get(responsibleId);
         if (existing) {
           existing.unclosedTotal += i.amount;
           existing.unclosedCount += 1;
         } else {
-          sellerMap.set(saleInfo.sellerId, {
-            name: saleInfo.sellerName || 'Vendedor',
+          sellerMap.set(responsibleId, {
+            name: responsibleName,
             unclosedTotal: i.amount,
             unclosedCount: 1,
           });

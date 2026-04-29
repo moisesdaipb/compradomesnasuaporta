@@ -1855,6 +1855,7 @@ const App: React.FC = () => {
               sellerId={user.id}
               sellerName={user.name}
               team={appData.team}
+              customers={appData.customers}
               setView={setView}
             />
           );
