@@ -88,7 +88,12 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
             const delivery = deliveries.find(d => d.saleId === i.saleId);
             const customer = customers.find(c => c.id === sale?.customerId);
 
-            const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId || customer?.createdBy === sellerId;
+            // A parcela só deve aparecer no fechamento se:
+            // 1. Eu recebi o dinheiro fisicamente (receivedBy === sellerId)
+            // 2. É uma parcela antiga sem registro de recebedor, mas eu fui o vendedor original ou motorista.
+            // Obs: Ter recebido a carteira do cliente não me obriga a prestar contas de um dinheiro que o vendedor antigo recebeu e não fechou.
+            const isAssignedToMe = i.receivedBy === sellerId || 
+                (!i.receivedBy && (sale?.sellerId === sellerId || delivery?.driverId === sellerId));
 
             return i.status === InstallmentStatus.PAID &&
                 isAssignedToMe &&

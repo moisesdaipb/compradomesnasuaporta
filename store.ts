@@ -1133,13 +1133,14 @@ export const updateProfile = async (id: string, updates: any) => {
   if (error) throw error;
 };
 
-export const payInstallment = async (id: string, paymentMethod: PaymentMethod) => {
+export const payInstallment = async (id: string, paymentMethod: PaymentMethod, receivedBy?: string) => {
   const { error } = await supabase
     .from('installments')
     .update({
       status: InstallmentStatus.PAID,
       payment_method: paymentMethod,
-      paid_at: new Date().toISOString()
+      paid_at: new Date().toISOString(),
+      received_by: receivedBy || null
     })
     .eq('id', id);
 

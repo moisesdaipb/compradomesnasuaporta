@@ -1492,7 +1492,8 @@ const App: React.FC = () => {
   // Installment Handlers
   const handlePayInstallment = useCallback(async (id: string, paymentMethod: PaymentMethod) => {
     try {
-      await payInstallment(id, paymentMethod);
+      const currentUserId = sessionRef.current?.id;
+      await payInstallment(id, paymentMethod, currentUserId);
       triggerRefresh(100);
     } catch (error) {
       console.error('Error paying installment:', error);
