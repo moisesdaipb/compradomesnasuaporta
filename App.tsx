@@ -2088,6 +2088,7 @@ const App: React.FC = () => {
             sales={appData.sales}
             installments={appData.installments}
             deliveries={appData.deliveries}
+            customers={appData.customers}
             dailyClosings={appData.dailyClosings}
             sellerId={user.id}
             sellerName={user.name}

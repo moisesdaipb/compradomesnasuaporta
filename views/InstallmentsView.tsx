@@ -64,7 +64,10 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
         // A. Basic Permissions & Sale Status
         const sale = sales.find(s => s.id === i.saleId);
         if (!sale || sale.status === OrderStatus.CANCELLED) return;
-        if (userRole !== 'gerente' && sale.sellerId !== userId) return;
+        if (userRole !== 'gerente') {
+            const customer = customers.find(c => c.id === sale.customerId);
+            if (sale.sellerId !== userId && customer?.createdBy !== userId) return;
+        }
 
         // B. Calculate Status (Handle Overdue locally and normalize strings)
         let currentStatus = i.status;

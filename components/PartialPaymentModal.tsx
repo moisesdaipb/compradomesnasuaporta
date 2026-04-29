@@ -153,11 +153,19 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
         Math.round((sale.total - totalSum) * 100) / 100, 
     [sale.total, totalSum]);
 
-    const isTotalValid = Math.abs(difference) < 0.01;
+    const hasNegativeAmount = useMemo(() => 
+        editableInstallments.some(i => i.amount < 0),
+    [editableInstallments]);
+
+    const isTotalValid = Math.abs(difference) < 0.01 && !hasNegativeAmount;
 
     const handleSave = async () => {
         if (!isTotalValid) {
-            alert(`Erro: A soma das parcelas (R$ ${totalSum.toFixed(2)}) deve ser igual ao total da venda (R$ ${sale.total.toFixed(2)})`);
+            if (hasNegativeAmount) {
+                alert(`Erro: O valor recebido não pode ser maior que o saldo devedor.`);
+            } else {
+                alert(`Erro: A soma das parcelas (R$ ${totalSum.toFixed(2)}) deve ser igual ao total da venda (R$ ${sale.total.toFixed(2)})`);
+            }
             return;
         }
 
@@ -379,9 +387,14 @@ const PartialPaymentModal: React.FC<PartialPaymentModalProps> = ({
                         </div>
                     </div>
 
-                    {!isTotalValid && (
+                    {!isTotalValid && !hasNegativeAmount && (
                         <p className="text-[10px] font-bold text-red-500 text-center italic animate-pulse">
                             A soma das parcelas deve ser R$ {sale.total.toFixed(2)}
+                        </p>
+                    )}
+                    {hasNegativeAmount && (
+                        <p className="text-[10px] font-bold text-red-500 text-center italic animate-pulse">
+                            O valor recebido não pode ser maior que o saldo devedor.
                         </p>
                     )}
 

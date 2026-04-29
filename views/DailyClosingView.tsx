@@ -7,6 +7,7 @@ interface DailyClosingViewProps {
     sales: Sale[];
     installments: Installment[];
     deliveries: Delivery[];
+    customers: Customer[];
     dailyClosings: DailyClosing[];
     sellerId: string;
     sellerName: string;
@@ -21,6 +22,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     sales,
     installments,
     deliveries,
+    customers,
     dailyClosings,
     sellerId,
     sellerName,
@@ -62,8 +64,10 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
             const isDirectSeller = s.sellerId === sellerId;
             const delivery = deliveries.find(d => d.saleId === s.id);
             const isAssignedDriver = delivery?.driverId === sellerId;
+            const customer = customers.find(c => c.id === s.customerId);
+            const isAssignedCustomer = customer?.createdBy === sellerId;
 
-            if (!isDirectSeller && !isAssignedDriver) return false;
+            if (!isDirectSeller && !isAssignedDriver && !isAssignedCustomer) return false;
             if (s.status === OrderStatus.CANCELLED) return false;
 
             if (!closedSalesIds.has(s.id)) return true;
@@ -82,8 +86,9 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
         installments.filter(i => {
             const sale = sales.find(s => s.id === i.saleId);
             const delivery = deliveries.find(d => d.saleId === i.saleId);
+            const customer = customers.find(c => c.id === sale?.customerId);
 
-            const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId;
+            const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId || customer?.createdBy === sellerId;
 
             return i.status === InstallmentStatus.PAID &&
                 isAssignedToMe &&
@@ -96,7 +101,8 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
         installments.filter(i => {
             const sale = sales.find(s => s.id === i.saleId);
             const delivery = deliveries.find(d => d.saleId === i.saleId);
-            const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId;
+            const customer = customers.find(c => c.id === sale?.customerId);
+            const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId || customer?.createdBy === sellerId;
             
             let status = i.status;
             if (typeof status === 'string') {
@@ -118,7 +124,8 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
             if (i.status !== InstallmentStatus.PAID) {
                 const sale = sales.find(s => s.id === i.saleId);
                 const delivery = deliveries.find(d => d.saleId === i.saleId);
-                const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId;
+                const customer = customers.find(c => c.id === sale?.customerId);
+                const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId || customer?.createdBy === sellerId;
 
                 if (isAssignedToMe && i.status !== InstallmentStatus.CANCELLED) {
                     // Also check if the parent sale is not cancelled just in case
