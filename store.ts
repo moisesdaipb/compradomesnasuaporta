@@ -1227,13 +1227,15 @@ export const createDailyClosing = async (closing: DailyClosing) => {
     });
   }
 
-  if (finalReceipts.length > 0) {
+  const validReceipts = finalReceipts.filter(r => (r.amount || 0) > 0);
+  
+  if (validReceipts.length > 0) {
     const { error: receiptsError } = await supabase
       .from('daily_receipts')
-      .insert(finalReceipts);
-
+      .insert(validReceipts);
+    
     if (receiptsError) {
-      console.error('[store] error inserting daily_receipts:', receiptsError);
+      console.error('[store] createDailyClosing receipts error:', receiptsError);
       throw receiptsError;
     }
   }

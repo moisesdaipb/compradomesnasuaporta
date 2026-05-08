@@ -53,7 +53,21 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
         const ids = new Set<string>();
         dailyClosings
             .filter(c => c.status !== ClosingStatus.REJECTED)
-            .forEach(c => c.installmentIds?.forEach(id => ids.add(id)));
+            .forEach(c => {
+                // IMPORTANT: Only consider it closed if there's a real receipt with amount > 0
+                // This prevents "ghost links" with 0.00 from blocking future real payments
+                const validInstIds = c.receipts
+                    ?.filter(r => r.installmentId && (r.amount || 0) > 0)
+                    .map(r => r.installmentId!) || [];
+                
+                validInstIds.forEach(id => ids.add(id));
+
+                // Fallback for older data that might not have full receipts array in memory
+                // but we trust the installmentIds array IF it's not a ghost link
+                if (!c.receipts || c.receipts.length === 0) {
+                    c.installmentIds?.forEach(id => ids.add(id));
+                }
+            });
         return ids;
     }, [dailyClosings]);
 
@@ -768,6 +782,33 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                                         <p className="text-[9px] font-black text-primary uppercase">Total Acertado</p>
                                         <p className="font-black text-sm text-primary">{formatCurrency((viewingClosing.cashAmount || 0) + (viewingClosing.pixAmount || 0) + (viewingClosing.cardAmount || 0))}</p>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Detalhamento dos Itens</h4>
+                                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 no-scrollbar">
+                                    {viewingClosing.receipts && viewingClosing.receipts.length > 0 ? viewingClosing.receipts.map((r, idx) => {
+                                        const inst = r.installmentId ? installments.find(i => i.id === r.installmentId) : null;
+                                        const sale = r.saleId ? sales.find(s => s.id === r.saleId) : null;
+                                        const customerName = inst?.customerName || sale?.customerName || 'Cliente não identificado';
+                                        const label = inst ? `Parcela ${inst.number}` : 'Venda à Vista';
+
+                                        return (
+                                            <div key={r.id || idx} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 truncate max-w-[150px]">{customerName}</span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{label}</span>
+                                                        <span className="text-[8px] px-1 bg-slate-200 dark:bg-slate-700 rounded text-slate-500 font-black uppercase">{r.paymentMethod}</span>
+                                                    </div>
+                                                </div>
+                                                <span className="text-xs font-black text-slate-600 dark:text-slate-300">{formatCurrency(r.amount)}</span>
+                                            </div>
+                                        );
+                                    }) : (
+                                        <p className="text-center py-4 text-[10px] text-slate-400 italic">Nenhum detalhe disponível para este acerto antigo.</p>
+                                    )}
                                 </div>
                             </div>
 

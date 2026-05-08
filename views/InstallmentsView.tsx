@@ -379,23 +379,44 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
 
                                 {installment.status === InstallmentStatus.PAID && installment.paidAt && (
                                     <div className="mt-3 flex flex-col items-center">
-                                        <p className="text-xs text-success text-center">
+                                        <p className="text-xs text-success text-center font-bold">
                                             Pago em {new Date(installment.paidAt).toLocaleDateString('pt-BR')}
                                         </p>
-                                        {!isReadOnly && !dailyClosings.some(c => c.installmentIds?.includes(installment.id) && (c.status === 'Pendente' || c.status === 'Aprovado')) && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (window.confirm('Tem certeza que deseja estornar este pagamento? A parcela voltará ao status pendente.')) {
-                                                        onUndoPayInstallment(installment.id);
-                                                    }
-                                                }}
-                                                className="mt-2 text-[10px] font-black uppercase text-slate-400 hover:text-danger transition-colors flex items-center gap-1"
-                                            >
-                                                <span className="material-symbols-outlined text-[14px]">undo</span>
-                                                Estornar Recebimento
-                                            </button>
-                                        )}
+                                        
+                                        {(() => {
+                                            const closing = dailyClosings.find(c => c.installmentIds?.includes(installment.id));
+                                            const isLocked = closing && (closing.status === 'aprovado' || closing.status === 'Aprovado' || closing.status === 'Pendente' || closing.status === 'pendente');
+                                            
+                                            if (isLocked) {
+                                                const approvalDate = closing.approvedAt || closing.closingDate;
+                                                return (
+                                                    <div className="mt-2 flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-700/50 rounded-full border border-slate-200 dark:border-slate-600">
+                                                        <span className="material-symbols-outlined text-[14px] text-slate-400">lock</span>
+                                                        <span className="text-[9px] font-black uppercase text-slate-500">
+                                                            {closing.status.toLowerCase() === 'aprovado' 
+                                                                ? `Consolidado em ${new Date(approvalDate).toLocaleDateString('pt-BR')}`
+                                                                : 'Aguardando Aprovação'
+                                                            }
+                                                        </span>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return !isReadOnly && onUndoPayInstallment && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (window.confirm('Tem certeza que deseja estornar este pagamento? A parcela voltará ao status pendente.')) {
+                                                            onUndoPayInstallment(installment.id);
+                                                        }
+                                                    }}
+                                                    className="mt-2 text-[10px] font-black uppercase text-slate-400 hover:text-danger transition-colors flex items-center gap-1"
+                                                >
+                                                    <span className="material-symbols-outlined text-[14px]">undo</span>
+                                                    Estornar Recebimento
+                                                </button>
+                                            );
+                                        })()}
                                     </div>
                                 )}
                             </div>

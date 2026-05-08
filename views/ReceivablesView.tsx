@@ -379,20 +379,44 @@ const ReceivablesView: React.FC<ReceivablesViewProps> = ({
                                             <div className="flex items-center gap-3">
                                                 <div className="text-right flex flex-col items-end">
                                                     <span className="text-xs font-black text-slate-700 dark:text-slate-200">{formatCurrency(i.amount)}</span>
-                                                    {i.status === InstallmentStatus.PAID && onUndoPayInstallment && !dailyClosings.some(c => c.installmentIds?.includes(i.id) && (c.status === 'Pendente' || c.status === 'Aprovado')) && (
+                                                    {i.status === InstallmentStatus.PAID && onUndoPayInstallment && (
+                                            <div className="mt-2 flex flex-col items-center gap-1">
+                                                {(() => {
+                                                    const closing = dailyClosings.find(c => c.installmentIds?.includes(i.id));
+                                                    const isLocked = closing && (closing.status === 'aprovado' || closing.status === 'Aprovado' || closing.status === 'Pendente' || closing.status === 'pendente');
+                                                    
+                                                    if (isLocked) {
+                                                        const approvalDate = closing.approvedAt || closing.closingDate;
+                                                        return (
+                                                            <div className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 dark:bg-slate-700/50 rounded-full border border-slate-200 dark:border-slate-600">
+                                                                <span className="material-symbols-outlined text-[12px] text-slate-400">lock</span>
+                                                                <span className="text-[8px] font-black uppercase text-slate-500 whitespace-nowrap">
+                                                                    {closing.status.toLowerCase() === 'aprovado' 
+                                                                        ? `Consolidado em ${new Date(approvalDate).toLocaleDateString('pt-BR')}`
+                                                                        : 'Aguardando Aprovação'
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    return (
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (window.confirm('Tem certeza que deseja estornar este pagamento?')) {
+                                                                if (window.confirm('Tem certeza que deseja estornar este pagamento? A parcela voltará ao status pendente.')) {
                                                                     onUndoPayInstallment(i.id);
                                                                 }
                                                             }}
-                                                            className="text-[8px] font-bold text-slate-400 hover:text-danger mt-0.5 flex items-center gap-0.5"
+                                                            className="text-[10px] font-black uppercase text-slate-400 hover:text-danger transition-colors flex items-center gap-1"
                                                         >
-                                                            <span className="material-symbols-outlined text-[10px]">undo</span>
+                                                            <span className="material-symbols-outlined text-[14px]">undo</span>
                                                             Estornar
                                                         </button>
-                                                    )}
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
                                                 </div>
                                                 <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
                                                     i.status === InstallmentStatus.PAID ? 'bg-success/10 text-success' : 'bg-slate-200 text-slate-500'
