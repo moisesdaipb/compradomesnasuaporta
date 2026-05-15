@@ -362,7 +362,7 @@ const Layout: React.FC<LayoutProps> = ({
                 <span className="text-sm uppercase tracking-widest">Sair do Sistema</span>
               </button>
               <p className="text-center text-[8px] text-slate-300 mt-4 uppercase font-bold tracking-widest">
-                v1.1.0 • {appName}
+                v1.2.0 • {appName}
               </p>
             </div>
           </div>
