@@ -1164,8 +1164,11 @@ export const createDailyClosing = async (closing: DailyClosing) => {
   console.log('[store] createDailyClosing started', closing);
 
   // 1. Insert into daily_closings
+  const date = new Date(closing.closingDate);
+  const localDateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  
   const payload: any = {
-    closing_date: new Date(closing.closingDate).toISOString().split('T')[0],
+    closing_date: localDateStr,
     seller_id: closing.sellerId,
     seller_name: closing.sellerName,
     cash_amount: closing.cashAmount,

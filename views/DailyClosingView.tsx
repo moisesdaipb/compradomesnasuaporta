@@ -39,34 +39,32 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     const [notes, setNotes] = useState('');
     const [viewingClosing, setViewingClosing] = useState<DailyClosing | null>(null);
     const [activeFilter, setActiveFilter] = useState<'all' | 'received' | 'pending'>('received');
+    const [historyDateFilter, setHistoryDateFilter] = useState('');
 
-    // Closed IDs (Sales and Installments)
-    const closedSalesIds = useMemo(() => {
-        const ids = new Set<string>();
-        dailyClosings
-            .filter(c => c.status !== ClosingStatus.REJECTED)
-            .forEach(c => c.salesIds?.forEach(id => ids.add(id)));
-        return ids;
-    }, [dailyClosings]);
-
-    const closedInstIds = useMemo(() => {
+    // Unified Closed IDs (Sales and Installments)
+    // We collect ALL IDs that are already present in ANY valid (non-rejected) daily closing.
+    // This prevents cross-seller visibility and double-closing.
+    const allClosedIds = useMemo(() => {
         const ids = new Set<string>();
         dailyClosings
             .filter(c => c.status !== ClosingStatus.REJECTED)
             .forEach(c => {
-                // IMPORTANT: Only consider it closed if there's a real receipt with amount > 0
-                // This prevents "ghost links" with 0.00 from blocking future real payments
-                const validInstIds = c.receipts
-                    ?.filter(r => r.installmentId && (r.amount || 0) > 0)
-                    .map(r => r.installmentId!) || [];
+                // Collect from the flat arrays (legacy support)
+                c.salesIds?.forEach(id => ids.add(id));
+                c.installmentIds?.forEach(id => ids.add(id));
                 
-                validInstIds.forEach(id => ids.add(id));
-
-                // Fallback for older data that might not have full receipts array in memory
-                // but we trust the installmentIds array IF it's not a ghost link
-                if (!c.receipts || c.receipts.length === 0) {
-                    c.installmentIds?.forEach(id => ids.add(id));
-                }
+                // Collect from the detailed receipts (modern approach)
+                c.receipts?.forEach(r => {
+                    if (r.saleId) ids.add(r.saleId);
+                    if (r.installmentId) ids.add(r.installmentId);
+                    
+                    // Special case: sometimes the saleId is used for the first installment
+                    // We add it to both just to be safe if the amount > 0
+                    if (r.amount > 0) {
+                        if (r.saleId) ids.add(r.saleId);
+                        if (r.installmentId) ids.add(r.installmentId);
+                    }
+                });
             });
         return ids;
     }, [dailyClosings]);
@@ -83,16 +81,16 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
 
             if (!isDirectSeller && !isAssignedDriver && !isAssignedCustomer) return false;
             if (s.status === OrderStatus.CANCELLED) return false;
-
-            if (!closedSalesIds.has(s.id)) return true;
+            if (allClosedIds.has(s.id)) return false;
+            
             if (s.paymentMethod === PaymentMethod.TERM) {
                 // Keep term sales visible if they have any unpaid balance
                 const hasUnpaid = installments.some(i => i.saleId === s.id && i.status !== InstallmentStatus.PAID && i.status !== InstallmentStatus.CANCELLED);
                 return hasUnpaid;
             }
-            return false;
+            return true;
         }).sort((a, b) => b.createdAt - a.createdAt),
-        [sales, sellerId, closedSalesIds, installments, deliveries]
+        [sales, sellerId, allClosedIds, installments, deliveries]
     );
 
     // Available Installments (paid to this seller, not closed)
@@ -111,9 +109,9 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
 
             return i.status === InstallmentStatus.PAID &&
                 isAssignedToMe &&
-                !closedInstIds.has(i.id);
+                !allClosedIds.has(i.id);
         }).sort((a, b) => (b.paidAt || 0) - (a.paidAt || 0)),
-        [installments, closedInstIds, sales, sellerId, deliveries]
+        [installments, allClosedIds, sales, sellerId, deliveries]
     );
 
     const pendingInstallments = useMemo(() =>
@@ -287,10 +285,27 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     };
 
     // Previous closings
-    const previousClosings = dailyClosings
-        .filter(c => c.sellerId === sellerId)
-        .sort((a, b) => b.closingDate - a.closingDate)
-        .slice(0, 5);
+    const previousClosings = useMemo(() => {
+        let filtered = dailyClosings.filter(c => c.sellerId === sellerId);
+
+        if (historyDateFilter) {
+            filtered = filtered.filter(c => {
+                // Timezone-safe date matching
+                // closingDate is a timestamp. We want to check if its YYYY-MM-DD matches the filter
+                const date = new Date(c.closingDate);
+                // Use UTC to avoid local timezone shifts for dates stored as YYYY-MM-DD
+                const year = date.getUTCFullYear();
+                const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(date.getUTCDate()).padStart(2, '0');
+                const iso = `${year}-${month}-${day}`;
+                return iso === historyDateFilter;
+            });
+        }
+
+        return filtered
+            .sort((a, b) => b.closingDate - a.closingDate)
+            .slice(0, historyDateFilter ? 50 : 5);
+    }, [dailyClosings, sellerId, historyDateFilter]);
 
     const getStatusConfig = (status: ClosingStatus) => {
         switch (status) {
@@ -619,7 +634,30 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                 {/* Previous Closings */}
                 {previousClosings.length > 0 && (
                     <div className="pt-6 space-y-4">
-                        <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">Últimos Acertos</h4>
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">Últimos Acertos</h4>
+                            <div className="flex items-center gap-2">
+                                {historyDateFilter && (
+                                    <button 
+                                        onClick={() => setHistoryDateFilter('')}
+                                        className="text-[10px] font-black text-primary uppercase tracking-tighter bg-primary/10 px-2 py-1 rounded-lg"
+                                    >
+                                        Limpar
+                                    </button>
+                                )}
+                                <div className="relative">
+                                    <input 
+                                        type="date" 
+                                        value={historyDateFilter}
+                                        onChange={(e) => setHistoryDateFilter(e.target.value)}
+                                        className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
+                                    />
+                                    <button className={`size-8 rounded-xl flex items-center justify-center transition-all ${historyDateFilter ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                                        <span className="material-symbols-outlined text-[18px]">calendar_today</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <div className="space-y-3">
                             {previousClosings.map(closing => {
                                 const statusConfig = getStatusConfig(closing.status);
@@ -634,7 +672,12 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                                             <div className={`size-2 rounded-full ${statusConfig.color} animate-pulse`} />
                                             <div>
                                                 <p className="text-sm font-black text-slate-700 dark:text-slate-200">
-                                                    {new Date(closing.closingDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                                    {(() => {
+                                                        const d = new Date(closing.closingDate);
+                                                        const day = String(d.getUTCDate()).padStart(2, '0');
+                                                        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+                                                        return `${day}/${month}`;
+                                                    })()}
                                                 </p>
                                                 <p className="text-[9px] font-black uppercase tracking-tighter text-slate-400">
                                                     {statusConfig.label}
@@ -753,7 +796,13 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                                 <div>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data do Fechamento</p>
                                     <p className="text-xl font-black text-primary">
-                                        {new Date(viewingClosing.closingDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                        {(() => {
+                                            const d = new Date(viewingClosing.closingDate);
+                                            const day = String(d.getUTCDate()).padStart(2, '0');
+                                            const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+                                            const year = d.getUTCFullYear();
+                                            return `${day}/${month}/${year}`;
+                                        })()}
                                     </p>
                                 </div>
                                 <div className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-sm ${viewingClosing.status === ClosingStatus.APPROVED ? 'bg-success' :
