@@ -571,6 +571,26 @@ export const fetchDailyClosings = async (): Promise<DailyClosing[]> => {
   });
 };
 
+export const fetchClosedPaymentIds = async (): Promise<{ salesIds: string[], installmentIds: string[] }> => {
+  const { data, error } = await supabase
+    .from('daily_receipts')
+    .select('sale_id, installment_id');
+
+  if (error) {
+    console.error('[store] fetchClosedPaymentIds error:', error);
+    throw error;
+  }
+
+  const salesIds: string[] = [];
+  const installmentIds: string[] = [];
+  (data || []).forEach(r => {
+    if (r.sale_id) salesIds.push(r.sale_id);
+    if (r.installment_id) installmentIds.push(r.installment_id);
+  });
+
+  return { salesIds, installmentIds };
+};
+
 export const upsertCustomer = async (customer: Partial<Customer>) => {
   const mapped: any = { id: customer.id };
 

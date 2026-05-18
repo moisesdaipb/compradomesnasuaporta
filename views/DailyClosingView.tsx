@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ViewState, Sale, PaymentMethod, DailyClosing, ClosingStatus, Installment, InstallmentStatus, Delivery, OrderStatus } from '../types';
+import { ViewState, Sale, PaymentMethod, DailyClosing, ClosingStatus, Installment, InstallmentStatus, Delivery, OrderStatus, Customer } from '../types';
 import { generateId } from '../store';
 import { formatCurrency } from '../utils';
 
@@ -9,6 +9,7 @@ interface DailyClosingViewProps {
     deliveries: Delivery[];
     customers: Customer[];
     dailyClosings: DailyClosing[];
+    closedPaymentIds?: { salesIds: string[], installmentIds: string[] };
     sellerId: string;
     sellerName: string;
     onCreateClosing: (closing: DailyClosing) => void;
@@ -24,6 +25,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     deliveries,
     customers,
     dailyClosings,
+    closedPaymentIds,
     sellerId,
     sellerName,
     onCreateClosing,
@@ -46,6 +48,14 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
     // This prevents cross-seller visibility and double-closing.
     const allClosedIds = useMemo(() => {
         const ids = new Set<string>();
+
+        // 1. Collect from detailed receipts passed down globally (Plan B: security-safe approach)
+        if (closedPaymentIds) {
+            closedPaymentIds.salesIds.forEach(id => ids.add(id));
+            closedPaymentIds.installmentIds.forEach(id => ids.add(id));
+        }
+
+        // 2. Collect from the loaded daily closings (legacy/fallback)
         dailyClosings
             .filter(c => c.status !== ClosingStatus.REJECTED)
             .forEach(c => {
@@ -67,7 +77,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                 });
             });
         return ids;
-    }, [dailyClosings]);
+    }, [dailyClosings, closedPaymentIds]);
 
     // Available Sales (made by this seller OR online assigned to this seller, not closed OR term sales with balance)
     const availableSales = useMemo(() =>
@@ -208,10 +218,10 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
         
         // Only select what's visible in the current filter
         const visibleSales = availableSales.filter(s => {
-            if (activeFilter === 'all') return !closedSalesIds.has(s.id);
+            if (activeFilter === 'all') return !allClosedIds.has(s.id);
             const isTerm = s.paymentMethod === PaymentMethod.TERM;
             const matchesFilter = activeFilter === 'received' ? !isTerm : isTerm;
-            return matchesFilter && !closedSalesIds.has(s.id);
+            return matchesFilter && !allClosedIds.has(s.id);
         });
 
         const isCurrentlyAllSelected = (selectedSalesIds.size === visibleSales.length && selectedInstIds.size === availableInstallments.length);
@@ -449,12 +459,12 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                                         className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isSelected
                                             ? 'border-primary bg-primary/5 dark:bg-primary/10'
                                             : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'
-                                            } ${closedSalesIds.has(sale.id) ? 'opacity-80' : ''}`}
+                                            } ${allClosedIds.has(sale.id) ? 'opacity-80' : ''}`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className={`size-6 rounded-lg border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-primary border-primary scale-110' : 'border-slate-200 dark:border-slate-700'}`}>
                                                 {isSelected && <span className="material-symbols-outlined text-white text-[16px] font-black">check</span>}
-                                                {!isSelected && closedSalesIds.has(sale.id) && <span className="material-symbols-outlined text-slate-400 text-[14px]">history</span>}
+                                                {!isSelected && allClosedIds.has(sale.id) && <span className="material-symbols-outlined text-slate-400 text-[14px]">history</span>}
                                             </div>
                                             <div className="text-left">
                                                 <p className={`text-sm font-black ${isSelected ? 'text-primary' : 'text-slate-700 dark:text-slate-200'}`}>{sale.customerName}</p>

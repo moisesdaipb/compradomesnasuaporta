@@ -100,6 +100,7 @@ import {
   upsertCorporateCustomer,
   deleteCorporateCustomer,
   reassignCustomers,
+  fetchClosedPaymentIds,
 } from './store';
 import { supabase } from './supabase';
 import { formatCurrency, validateCPF, isValidEmail } from './utils';
@@ -294,6 +295,7 @@ const App: React.FC = () => {
         (isManager ? fetchSupplies() : Promise.resolve([])).catch(err => { console.error('fetchSupplies failed:', err); return []; }),
         (isManager ? fetchSupplyEntries() : Promise.resolve([])).catch(err => { console.error('fetchSupplyEntries failed:', err); return []; }),
         (isManager ? fetchSuppliers() : Promise.resolve([])).catch(err => { console.error('fetchSuppliers failed:', err); return []; }),
+        (isManager ? fetchClosedPaymentIds() : Promise.resolve({ salesIds: [], installmentIds: [] })).catch(err => { console.error('fetchClosedPaymentIds failed:', err); return { salesIds: [], installmentIds: [] }; }),
       ]);
 
       // If aborted while fetching, don't update state
@@ -302,7 +304,7 @@ const App: React.FC = () => {
         return;
       }
 
-      const [baskets, customers, team, sales, deliveries, closings, stockEntries, stockSummary, allUsers, installments, goals, settings, loginLogs, auditLogs, supplies, supplyEntries, suppliers] = results;
+      const [baskets, customers, team, sales, deliveries, closings, stockEntries, stockSummary, allUsers, installments, goals, settings, loginLogs, auditLogs, supplies, supplyEntries, suppliers, closedPaymentIds] = results;
       const recipeData = await fetchSupplyRecipes();
       const productionsData = await fetchProductions();
       const corporateCustomersData = await (isManager ? fetchCorporateCustomers() : Promise.resolve([]));
@@ -361,6 +363,7 @@ const App: React.FC = () => {
           supplyRecipeItems: recipeData.items,
           productions: productionsData,
           corporateCustomers: corporateCustomersData,
+          closedPaymentIds,
         };
       });
     } catch (error: any) {
@@ -2092,6 +2095,7 @@ const App: React.FC = () => {
             deliveries={appData.deliveries}
             customers={appData.customers}
             dailyClosings={appData.dailyClosings}
+            closedPaymentIds={appData.closedPaymentIds}
             sellerId={user.id}
             sellerName={user.name}
             onCreateClosing={handleCreateClosing}

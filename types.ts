@@ -468,4 +468,5 @@ export interface AppData {
   supplyRecipeItems: SupplyRecipeItem[];
   productions: Production[];
   corporateCustomers: CorporateCustomer[];
+  closedPaymentIds?: { salesIds: string[], installmentIds: string[] };
 }
