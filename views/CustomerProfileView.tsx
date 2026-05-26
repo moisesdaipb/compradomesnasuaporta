@@ -282,7 +282,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                         </div>
                         <button
                             onClick={() => fileInputRef.current?.click()}
-                            className="absolute bottom-0 right-0 size-9 bg-[#0a4da3] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform border-4 border-white z-10"
+                            className="absolute bottom-0 right-0 size-9 bg-primary text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform border-4 border-white z-10"
                         >
                             <span className="material-symbols-outlined text-sm">edit</span>
                         </button>
@@ -296,7 +296,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                 {/* Personal Info */}
                 <div className="space-y-4">
                     <div className="flex items-center gap-2 mb-2">
-                        <span className="material-symbols-outlined text-[#0a4da3] text-xl font-bold">person</span>
+                        <span className="material-symbols-outlined text-primary text-xl font-bold">person</span>
                         <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">Dados Pessoais</h4>
                     </div>
 
@@ -307,7 +307,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                 type="text"
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3] outline-none transition-all font-medium"
+                                className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-medium"
                                 placeholder="Seu nome"
                             />
                         </div>
@@ -321,7 +321,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                         setFormData({ ...formData, cpf: e.target.value });
                                         if (cpfError) setCpfError(null);
                                     }}
-                                    className={`w-full h-12 px-4 rounded-xl bg-white border ${cpfError ? 'border-danger ring-1 ring-danger' : 'border-slate-300'} shadow-sm focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3] outline-none transition-all font-medium`}
+                                    className={`w-full h-12 px-4 rounded-xl bg-white border ${cpfError ? 'border-danger ring-1 ring-danger' : 'border-slate-300'} shadow-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-medium`}
                                     placeholder="000.000.000-00"
                                 />
                                 {cpfError && (
@@ -334,7 +334,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                     type="text"
                                     value={formData.phone}
                                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3] outline-none transition-all font-medium"
+                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-medium"
                                     placeholder="(00) 00000-0000"
                                 />
                             </div>
@@ -354,7 +354,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                 readOnly={session.provider === 'google'}
-                                className={`w-full h-12 px-4 rounded-xl border shadow-sm focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3] outline-none transition-all font-medium ${session.provider === 'google' ? 'bg-slate-100/50 text-slate-400 cursor-not-allowed border-slate-200 border-dashed' : 'bg-white border-slate-300'}`}
+                                className={`w-full h-12 px-4 rounded-xl border shadow-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-medium ${session.provider === 'google' ? 'bg-slate-100/50 text-slate-400 cursor-not-allowed border-slate-200 border-dashed' : 'bg-white border-slate-300'}`}
                                 placeholder="seu@email.com"
                             />
                         </div>
@@ -365,7 +365,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                 <div className="space-y-4">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[#0a4da3] text-xl font-bold">location_on</span>
+                            <span className="material-symbols-outlined text-primary text-xl font-bold">location_on</span>
                             <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">Endereço de Entrega</h4>
                         </div>
                     </div>
@@ -382,12 +382,12 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                         const formatted = val.length > 5 ? `${val.slice(0, 5)}-${val.slice(5)}` : val;
                                         setFormData({ ...formData, zipCode: formatted });
                                     }}
-                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-bold text-lg focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3]"
+                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-bold text-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                     placeholder="00000-000"
                                 />
                                 {isSearching && (
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                        <div className="size-4 border-2 border-[#0a4da3]/20 border-t-[#0a4da3] rounded-full animate-spin" />
+                                        <div className="size-4 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
                                     </div>
                                 )}
                             </div>
@@ -400,7 +400,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                     type="text"
                                     value={formData.address}
                                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3]"
+                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                     placeholder="Rua, Avenida..."
                                 />
                             </div>
@@ -410,7 +410,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                     type="text"
                                     value={formData.addressNumber}
                                     onChange={(e) => setFormData({ ...formData, addressNumber: e.target.value })}
-                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3]"
+                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                     placeholder="123"
                                 />
                             </div>
@@ -423,7 +423,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                     type="text"
                                     value={formData.complement}
                                     onChange={(e) => setFormData({ ...formData, complement: e.target.value })}
-                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3]"
+                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                     placeholder="Ex: Apto 101"
                                 />
                             </div>
@@ -433,7 +433,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                     type="text"
                                     value={formData.neighborhood}
                                     onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
-                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3]"
+                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                 />
                             </div>
                         </div>
@@ -445,7 +445,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                     type="text"
                                     value={formData.city}
                                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3]"
+                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                 />
                             </div>
                             <div className="col-span-2 space-y-1.5">
@@ -455,7 +455,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                     value={formData.state}
                                     maxLength={2}
                                     onChange={(e) => setFormData({ ...formData, state: e.target.value.toUpperCase() })}
-                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3]"
+                                    className="w-full h-12 px-4 rounded-xl bg-white border border-slate-300 shadow-sm outline-none font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                     placeholder="EX: SP"
                                 />
                             </div>
@@ -480,7 +480,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                 <button
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="w-full h-14 bg-[#0a4da3] text-white font-black rounded-2xl shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70"
+                    className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70"
                 >
                     {isSaving ? (
                         <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -524,7 +524,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                         left: '50%',
                                     }}
                                 />
-                                <div className="absolute inset-0 border-4 border-[#0a4da3] rounded-full pointer-events-none opacity-50" />
+                                <div className="absolute inset-0 border-4 border-primary rounded-full pointer-events-none opacity-50" />
                             </div>
 
                             <div className="mt-8 space-y-4">
@@ -537,9 +537,9 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                                         step="0.01"
                                         value={zoom}
                                         onChange={(e) => setZoom(parseFloat(e.target.value))}
-                                        className="flex-1 accent-[#0a4da3] h-1.5 bg-slate-100 rounded-full appearance-none cursor-pointer"
+                                        className="flex-1 accent-primary h-1.5 bg-slate-100 rounded-full appearance-none cursor-pointer"
                                     />
-                                    <span className="material-symbols-outlined text-[#0a4da3] text-lg">zoom_in</span>
+                                    <span className="material-symbols-outlined text-primary text-lg">zoom_in</span>
                                 </div>
                             </div>
                         </div>
@@ -553,7 +553,7 @@ const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                             </button>
                             <button
                                 onClick={handleCropSave}
-                                className="flex-2 px-8 h-12 bg-[#0a4da3] text-white font-black rounded-2xl shadow-lg shadow-[#0a4da3]/20 active:scale-95 transition-all"
+                                className="flex-2 px-8 h-12 bg-primary text-white font-black rounded-2xl shadow-lg shadow-primary/20 active:scale-95 transition-all"
                             >
                                 PRONTO
                             </button>

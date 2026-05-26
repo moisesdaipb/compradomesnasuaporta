@@ -14,8 +14,8 @@
             theme: {
                 extend: {
                     colors: {
-                        "primary": "var(--primary)",
-                        "secondary": "var(--secondary)",
+                        "primary": ({ opacityValue }) => opacityValue !== undefined ? `rgba(var(--primary-rgb), ${opacityValue})` : `var(--primary)`,
+                        "secondary": ({ opacityValue }) => opacityValue !== undefined ? `rgba(var(--secondary-rgb), ${opacityValue})` : `var(--secondary)`,
                         "success": "#10b981",
                         "danger": "#ef4444",
                         "background-light": "#E2E8F0",

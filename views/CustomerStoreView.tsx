@@ -203,7 +203,7 @@ const CustomerStoreView: React.FC<CustomerStoreViewProps> = ({
                             {index === 0 ? (
                                 // Default Banner BG
                                 <>
-                                    <div className="absolute inset-0 bg-gradient-to-br from-[#0a4da3] via-[#083d7a] to-[#041d3d]" />
+                                    <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/80 to-slate-950" />
                                     <div className="absolute inset-0 bg-black/20 mix-blend-multiply" />
                                 </>
                             ) : (

@@ -233,6 +233,23 @@ const App: React.FC = () => {
       const secondary = appData.settings.secondaryColor || '#F5B301';
       document.documentElement.style.setProperty('--primary', primary);
       document.documentElement.style.setProperty('--secondary', secondary);
+
+      // Helper to convert hex string to space-separated RGB numbers
+      const hexToRgb = (hexStr: string): string | null => {
+        const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+        const fullHex = hexStr.replace(shorthandRegex, (_, r, g, b) => r + r + g + g + b + b);
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex);
+        return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : null;
+      };
+
+      const primaryRgb = hexToRgb(primary);
+      const secondaryRgb = hexToRgb(secondary);
+      if (primaryRgb) {
+        document.documentElement.style.setProperty('--primary-rgb', primaryRgb);
+      }
+      if (secondaryRgb) {
+        document.documentElement.style.setProperty('--secondary-rgb', secondaryRgb);
+      }
     }
   }, [appData.settings]);
 

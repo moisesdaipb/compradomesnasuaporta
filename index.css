@@ -4,7 +4,9 @@
 
 :root {
   --primary: #0a4da3;
+  --primary-rgb: 10, 77, 163;
   --secondary: #F5B301;
+  --secondary-rgb: 245, 179, 1;
 }
 
 body {
