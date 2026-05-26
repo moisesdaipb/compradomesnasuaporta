@@ -17,6 +17,8 @@ const AppConfigView: React.FC<AppConfigViewProps> = ({
     const [appLogo, setAppLogo] = useState(settings.appLogo || 'shopping_basket');
     const [whatsappNumber, setWhatsappNumber] = useState(settings.whatsappNumber || '');
     const [logoType, setLogoType] = useState<'icon' | 'image'>(settings.logoType || 'icon');
+    const [primaryColor, setPrimaryColor] = useState(settings.primaryColor || '#0a4da3');
+    const [secondaryColor, setSecondaryColor] = useState(settings.secondaryColor || '#F5B301');
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -55,7 +57,9 @@ const AppConfigView: React.FC<AppConfigViewProps> = ({
                 appName, 
                 appLogo, 
                 logoType, 
-                whatsappNumber: whatsappNumber.replace(/\D/g, '') 
+                whatsappNumber: whatsappNumber.replace(/\D/g, ''),
+                primaryColor,
+                secondaryColor
             });
             alert('Configurações salvas com sucesso!');
         } catch (error) {
@@ -69,7 +73,9 @@ const AppConfigView: React.FC<AppConfigViewProps> = ({
     const hasChanges = appName !== settings.appName ||
         appLogo !== settings.appLogo ||
         logoType !== settings.logoType ||
-        whatsappNumber !== settings.whatsappNumber;
+        whatsappNumber !== settings.whatsappNumber ||
+        primaryColor !== settings.primaryColor ||
+        secondaryColor !== settings.secondaryColor;
 
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] animate-in fade-in duration-300">
@@ -130,10 +136,53 @@ const AppConfigView: React.FC<AppConfigViewProps> = ({
                                     onChange={(e) => setWhatsappNumber(e.target.value)}
                                     className="w-full h-14 pl-12 pr-4 rounded-2xl bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-[#0a4da3]/20 focus:border-[#0a4da3] outline-none transition-all font-bold text-slate-900"
                                     placeholder="55 (Código do País) + DDD + Número"
-                                />
+                                  />
                                 <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                                     chat_bubble
                                 </span>
+                            </div>
+                        </div>
+
+                        {/* App Colors */}
+                        <div className="space-y-3 animate-in fade-in duration-300">
+                            <label className="text-[10px] font-black text-slate-400 ml-1 uppercase tracking-widest">Cores do Aplicativo</label>
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <div className="space-y-1">
+                                    <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Cor Primária</label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="color"
+                                            value={primaryColor}
+                                            onChange={(e) => setPrimaryColor(e.target.value)}
+                                            className="size-10 rounded-lg border border-slate-200 cursor-pointer p-0 bg-transparent shrink-0"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={primaryColor}
+                                            onChange={(e) => setPrimaryColor(e.target.value)}
+                                            className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white font-bold text-xs uppercase"
+                                            placeholder="#000000"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Cor Secundária</label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="color"
+                                            value={secondaryColor}
+                                            onChange={(e) => setSecondaryColor(e.target.value)}
+                                            className="size-10 rounded-lg border border-slate-200 cursor-pointer p-0 bg-transparent shrink-0"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={secondaryColor}
+                                            onChange={(e) => setSecondaryColor(e.target.value)}
+                                            className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white font-bold text-xs uppercase"
+                                            placeholder="#000000"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

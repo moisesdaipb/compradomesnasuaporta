@@ -1985,7 +1985,7 @@ export const fetchSettings = async (): Promise<AppSettings> => {
   try {
     const { data: dbSettings, error } = await supabase
       .from('app_config')
-      .select('app_name, app_logo, logo_type, whatsapp_number')
+      .select('app_name, app_logo, logo_type, whatsapp_number, primary_color, secondary_color')
       .eq('id', 'global')
       .maybeSingle();
 
@@ -1999,7 +1999,9 @@ export const fetchSettings = async (): Promise<AppSettings> => {
         appName: dbSettings.app_name,
         appLogo: dbSettings.app_logo || 'shopping_basket',
         logoType: dbSettings.logo_type as any,
-        whatsappNumber: dbSettings.whatsapp_number
+        whatsappNumber: dbSettings.whatsapp_number,
+        primaryColor: dbSettings.primary_color || '#0a4da3',
+        secondaryColor: dbSettings.secondary_color || '#F5B301'
       };
 
       // Update local cache for instant loading on next session
@@ -2035,6 +2037,8 @@ export const updateSettings = async (settings: AppSettings) => {
         app_logo: settings.appLogo,
         logo_type: settings.logoType,
         whatsapp_number: settings.whatsappNumber,
+        primary_color: settings.primaryColor || '#0a4da3',
+        secondary_color: settings.secondaryColor || '#F5B301',
         updated_at: new Date().toISOString()
       });
 

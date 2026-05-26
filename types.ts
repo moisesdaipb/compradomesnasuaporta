@@ -365,6 +365,8 @@ export interface AppSettings {
   appLogo?: string;
   logoType?: 'icon' | 'image';
   whatsappNumber?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
 }
 
 // ============================================

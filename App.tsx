@@ -226,6 +226,16 @@ const App: React.FC = () => {
   // Selected customer for presential sale
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
+  // Dynamic color theme injector based on appSettings
+  useEffect(() => {
+    if (appData.settings) {
+      const primary = appData.settings.primaryColor || '#0a4da3';
+      const secondary = appData.settings.secondaryColor || '#F5B301';
+      document.documentElement.style.setProperty('--primary', primary);
+      document.documentElement.style.setProperty('--secondary', secondary);
+    }
+  }, [appData.settings]);
+
   // Loading Status for UI feedback
   const [loadingStatus, setLoadingStatus] = useState<string>('Inicializando...');
   const isRefreshingRef = React.useRef(false);
