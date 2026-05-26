@@ -250,6 +250,11 @@ const App: React.FC = () => {
       if (secondaryRgb) {
         document.documentElement.style.setProperty('--secondary-rgb', secondaryRgb);
       }
+
+      // Dynamically set browser tab title based on brand settings
+      if (appData.settings.appName) {
+        document.title = appData.settings.appName;
+      }
     }
   }, [appData.settings]);
 
