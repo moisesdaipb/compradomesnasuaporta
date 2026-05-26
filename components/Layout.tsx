@@ -147,7 +147,7 @@ const Layout: React.FC<LayoutProps> = ({
           <div className="flex justify-center">
             <button
               onClick={() => setView(isCustomer ? 'customer-store' : 'dashboard')}
-              className="bg-[#0a4da3] px-6 py-2 rounded-full shadow-lg border border-white/10 ring-4 ring-[#0a4da3]/5 active:scale-95 hover:scale-105 transition-all cursor-pointer"
+              className="bg-primary px-6 py-2 rounded-full shadow-lg border border-white/10 ring-4 ring-primary/5 active:scale-95 hover:scale-105 transition-all cursor-pointer"
             >
               <h1 className="text-[12px] xs:text-sm font-black text-white leading-tight uppercase tracking-[0.2em] text-center max-w-[260px] break-words drop-shadow-md">
                 {appName}
@@ -237,7 +237,7 @@ const Layout: React.FC<LayoutProps> = ({
                         {item.icon}
                       </span>
                       {cartCount > 0 && (
-                        <span className="absolute top-0 right-2 size-5 bg-[#0a4da3] text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                        <span className="absolute top-0 right-2 size-5 bg-primary text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
                           {cartCount}
                         </span>
                       )}

@@ -22,7 +22,7 @@ body {
 }
 
 .banner-gradient {
-  background: linear-gradient(135deg, #0a4da3 0%, #1e40af 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
 }
 
 .product-card-shadow {
