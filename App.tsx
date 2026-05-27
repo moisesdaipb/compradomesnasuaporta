@@ -1076,6 +1076,16 @@ const App: React.FC = () => {
     }
   }, [triggerRefresh]);
 
+  const handleDeleteSupplyEntry = useCallback(async (entryId: string, supplyId: string, quantity: number) => {
+    try {
+      await deleteSupplyEntry(entryId, supplyId, quantity);
+      triggerRefresh(100);
+    } catch (error: any) {
+      console.error('Error deleting supply entry:', error);
+      alert('Erro ao excluir entrada de insumo: ' + (error.message || 'Erro desconhecido'));
+    }
+  }, [triggerRefresh]);
+
   const handleDecreaseStock = useCallback(async (modelId: string, quantity: number, notes: string) => {
     if (!session) return;
     try {
@@ -2263,7 +2273,7 @@ const App: React.FC = () => {
             onAddSupplyEntry={handleAddSupplyEntry}
             onUpsertSupplier={upsertSupplier}
             onDeleteSupplier={deleteSupplier}
-            onDeleteSupplyEntry={handleDeleteStockEntry}
+            onDeleteSupplyEntry={handleDeleteSupplyEntry}
             onUpsertRecipe={handleUpsertRecipe}
             onDeleteRecipe={handleDeleteRecipe}
             onRecordProduction={handleRecordProductionLocal}
