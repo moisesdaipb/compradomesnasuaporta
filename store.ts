@@ -1502,13 +1502,16 @@ export const addSupplyEntry = async (entry: Omit<SupplyEntry, 'id' | 'createdAt'
 };
 
 export const deleteSupplyEntry = async (entryId: string, supplyId: string, quantity: number) => {
+  console.log('[store] Iniciando exclusão. entryId:', entryId, 'supplyId:', supplyId, 'quantity:', quantity);
   // 1. Deletar registro
-  const { error: deleteError } = await supabase
+  const { data, error: deleteError, count } = await supabase
     .from('supply_entries')
-    .delete()
+    .delete({ count: 'exact' })
     .eq('id', entryId);
 
+  console.log('[store] Deleção concluída.', { data, deleteError, count });
   if (deleteError) throw deleteError;
+  if (count === 0) throw new Error('Nenhuma linha foi apagada. Verifique se o registro existe ou se há permissões.');
 
   // 2. Reverter saldo
   const { error: updateError } = await supabase.rpc('increment_supply_stock', {

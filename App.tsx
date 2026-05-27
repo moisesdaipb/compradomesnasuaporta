@@ -1077,12 +1077,18 @@ const App: React.FC = () => {
   }, [triggerRefresh]);
 
   const handleDeleteSupplyEntry = useCallback(async (entryId: string, supplyId: string, quantity: number) => {
+    console.log('[App] handleDeleteSupplyEntry acionado com', { entryId, supplyId, quantity });
+    if (!entryId || !supplyId || !quantity) {
+      alert('Erro: ID da entrada ou insumo não foi passado corretamente para a função.');
+      return;
+    }
     try {
       await deleteSupplyEntry(entryId, supplyId, quantity);
+      alert('Entrada excluída com sucesso! Os saldos do estoque do insumo foram atualizados.');
       triggerRefresh(100);
     } catch (error: any) {
       console.error('Error deleting supply entry:', error);
-      alert('Erro ao excluir entrada de insumo: ' + (error.message || 'Erro desconhecido'));
+      alert('Erro ao excluir entrada de insumo: ' + (error.message || 'Erro desconhecido.'));
     }
   }, [triggerRefresh]);
 
