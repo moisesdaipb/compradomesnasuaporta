@@ -1087,6 +1087,11 @@ const App: React.FC = () => {
       alert('Entrada excluída com sucesso! Os saldos do estoque do insumo foram atualizados.');
       triggerRefresh(100);
     } catch (error: any) {
+      if (error.message === 'ENTRADA_JA_EXCLUIDA') {
+        alert('Esta entrada já havia sido apagada anteriormente e o seu estoque já foi estornado. A tela será atualizada agora para remover a linha.');
+        triggerRefresh(100);
+        return;
+      }
       console.error('Error deleting supply entry:', error);
       alert('Erro ao excluir entrada de insumo: ' + (error.message || 'Erro desconhecido.'));
     }

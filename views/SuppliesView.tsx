@@ -86,6 +86,7 @@ const SuppliesView: React.FC<SuppliesViewProps> = ({
   // Approval Modal State
   const [approvingProductionId, setApprovingProductionId] = useState<string | null>(null);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [isApprovingLoading, setIsApprovingLoading] = useState(false);
 
   // Calculator State
   const [isCalculatorModalOpen, setIsCalculatorModalOpen] = useState(false);
@@ -1016,11 +1017,21 @@ const SuppliesView: React.FC<SuppliesViewProps> = ({
               <p className="text-xs text-slate-400 font-medium">Escolha para onde essas cestas serão direcionadas após a aprovação.</p>
               <div className="space-y-3">
                 <button
+                  disabled={isApprovingLoading}
                   onClick={async () => {
-                    await onApproveProduction(approvingProductionId, 'geral');
-                    setIsApprovalModalOpen(false);
-                    setApprovingProductionId(null);
-                    onRefresh();
+                    if (isApprovingLoading) return;
+                    setIsApprovingLoading(true);
+                    try {
+                      await onApproveProduction(approvingProductionId, 'geral');
+                      setIsApprovalModalOpen(false);
+                      setApprovingProductionId(null);
+                      onRefresh();
+                    } catch (err) {
+                      console.error(err);
+                      alert('Erro ao aprovar produção.');
+                    } finally {
+                      setIsApprovingLoading(false);
+                    }
                   }}
                   className="w-full p-5 rounded-[24px] border-2 border-green-200 bg-green-50 dark:bg-green-900/20 flex items-center gap-4 hover:border-green-400 transition-all active:scale-[0.98]"
                 >
@@ -1033,11 +1044,21 @@ const SuppliesView: React.FC<SuppliesViewProps> = ({
                   </div>
                 </button>
                 <button
+                  disabled={isApprovingLoading}
                   onClick={async () => {
-                    await onApproveProduction(approvingProductionId, 'empresarial');
-                    setIsApprovalModalOpen(false);
-                    setApprovingProductionId(null);
-                    onRefresh();
+                    if (isApprovingLoading) return;
+                    setIsApprovingLoading(true);
+                    try {
+                      await onApproveProduction(approvingProductionId, 'empresarial');
+                      setIsApprovalModalOpen(false);
+                      setApprovingProductionId(null);
+                      onRefresh();
+                    } catch (err) {
+                      console.error(err);
+                      alert('Erro ao aprovar produção.');
+                    } finally {
+                      setIsApprovingLoading(false);
+                    }
                   }}
                   className="w-full p-5 rounded-[24px] border-2 border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 flex items-center gap-4 hover:border-indigo-400 transition-all active:scale-[0.98]"
                 >

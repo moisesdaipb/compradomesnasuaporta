@@ -1511,7 +1511,7 @@ export const deleteSupplyEntry = async (entryId: string, supplyId: string, quant
 
   console.log('[store] Deleção concluída.', { data, deleteError, count });
   if (deleteError) throw deleteError;
-  if (count === 0) throw new Error('Nenhuma linha foi apagada. Verifique se o registro existe ou se há permissões.');
+  if (count === 0) throw new Error('ENTRADA_JA_EXCLUIDA');
 
   // 2. Reverter saldo
   const { error: updateError } = await supabase.rpc('increment_supply_stock', {
