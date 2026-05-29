@@ -106,7 +106,7 @@ const SellerManagementView: React.FC<SellerManagementViewProps> = ({
             if (!sale || sale.status === OrderStatus.CANCELLED) return false;
             const customer = customers.find(c => c.id === sale.customerId);
             
-            return sale.sellerId === sellerId || customer?.createdBy === sellerId;
+            return customer?.createdBy ? customer.createdBy === sellerId : sale.sellerId === sellerId;
         });
 
         // Installment metrics (All time pending)

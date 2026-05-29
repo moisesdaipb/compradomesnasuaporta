@@ -66,7 +66,7 @@ const InstallmentsView: React.FC<InstallmentsViewProps> = ({
         if (!sale || sale.status === OrderStatus.CANCELLED) return;
         if (userRole !== 'gerente') {
             const customer = customers.find(c => c.id === sale.customerId);
-            if (sale.sellerId !== userId && customer?.createdBy !== userId) return;
+            if (customer?.createdBy ? customer.createdBy !== userId : sale.sellerId !== userId) return;
         }
 
         // B. Calculate Status (Handle Overdue locally and normalize strings)

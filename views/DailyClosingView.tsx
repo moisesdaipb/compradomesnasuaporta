@@ -127,7 +127,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
             const sale = sales.find(s => s.id === i.saleId);
             const delivery = deliveries.find(d => d.saleId === i.saleId);
             const customer = customers.find(c => c.id === sale?.customerId);
-            const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId || customer?.createdBy === sellerId;
+            const isAssignedToMe = (customer?.createdBy ? customer.createdBy === sellerId : sale?.sellerId === sellerId) || delivery?.driverId === sellerId;
             
             let status = i.status;
             if (typeof status === 'string') {
@@ -150,7 +150,7 @@ const DailyClosingView: React.FC<DailyClosingViewProps> = ({
                 const sale = sales.find(s => s.id === i.saleId);
                 const delivery = deliveries.find(d => d.saleId === i.saleId);
                 const customer = customers.find(c => c.id === sale?.customerId);
-                const isAssignedToMe = sale?.sellerId === sellerId || delivery?.driverId === sellerId || customer?.createdBy === sellerId;
+                const isAssignedToMe = (customer?.createdBy ? customer.createdBy === sellerId : sale?.sellerId === sellerId) || delivery?.driverId === sellerId;
 
                 if (isAssignedToMe && i.status !== InstallmentStatus.CANCELLED) {
                     // Also check if the parent sale is not cancelled just in case

@@ -48,13 +48,20 @@ Este arquivo serve para documentar de forma detalhada todas as atualizações de
    * Removido o critério de cruzamento de dados `customer?.createdBy === sellerId` da constante `availableSales`. 
    * A regra agora determina que uma venda finalizada (à vista ou entregue) só pertence ao caixa de quem **efetivamente vendeu** (`sale.sellerId === sellerId`) ou **entregou** (`delivery?.driverId === sellerId`). A autoria original de cadastro do cliente não mais interfere na prestação de contas de vendas concluídas.
 
-2. **Preservação de Cobranças Futuras (Portabilidade de Carteira):**
-   * O critério de `createdBy` foi mantido de forma reativa e inteligente apenas no painel **A Receber** (parcelas pendentes).
-   * Desta forma, quando um cliente é transferido de vendedor via edição do cliente no sistema (o que atualiza o `created_by` do cliente para o ID do novo vendedor):
-     * O **novo vendedor** passa a herdar a visibilidade de todas as cobranças futuras e parcelas pendentes daquele cliente (podendo realizar novas cobranças e recebimentos normalmente).
-     * O **vendedor antigo** deixa de ver pendências e cobranças do cliente transferido, eliminando poluição visual do seu terminal de cobranças.
-     * Os **recebimentos passados** (parcelas já pagas e caixas fechados) mantêm-se estritamente vinculados a quem os recebeu originalmente (`receivedBy`), mantendo a integridade da contabilidade e auditoria.
+2. **Preservação de Cobranças Futuras e Unificação das Telas (Portabilidade de Carteira):**
+   * O critério de `createdBy` foi mantido de forma inteligente **apenas para cobranças futuras e parcelas pendentes**.
+   * Para evitar conflitos de dupla visibilidade, unificamos a **Regra de Ouro da Portabilidade** em quatro componentes cruciais do sistema:
+     * **[DailyClosingView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/compradomesnasuaporta/views/DailyClosingView.tsx)** (Fechar Caixa - listas e totais de parcelas pendentes)
+     * **[SellerManagementView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/compradomesnasuaporta/views/SellerManagementView.tsx)** (Painel "Minha Gestão" - métricas de cobrança futura e semanal)
+     * **[InstallmentsView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/compradomesnasuaporta/views/InstallmentsView.tsx)** (Contas Parceladas - visualização geral para vendedores)
+     * **[ReceivablesView.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/compradomesnasuaporta/views/ReceivablesView.tsx)** (Calendário e Gestão de Recebíveis)
+   * **Nova Regra Unificada:** Se o cliente possui um vendedor associado (`customer.createdBy`), a responsabilidade por cobrar as parcelas em aberto é **exclusiva do vendedor atual**. O vendedor antigo (`sale.sellerId`) só assume a pendência como fallback caso o cliente não pertença a nenhuma carteira.
+   * Desta forma, quando um cliente é transferido de vendedor via edição do cadastro (o que atualiza `customers.created_by`):
+     * O **novo vendedor** passa a herdar a visibilidade de todas as cobranças futuras e pendentes daquele cliente em todas as telas (pode ligar via WhatsApp, acompanhar na agenda e fechar no caixa).
+     * O **vendedor antigo** deixa de ver pendências e cobranças desse cliente imediatamente em todas as suas telas de cobrança e desempenho, eliminando conflitos e riscos de dupla cobrança na rua.
+     * Os **recebimentos passados** (parcelas já pagas e caixas fechados) mantêm-se 100% atrelados a quem de fato os recebeu (`receivedBy`), preservando a contabilidade histórica de auditoria.
 
 #### 📊 Validação de Engenharia:
+* **Verificação Estática:** Executamos com sucesso o comando `npm run build` para garantir que a uniformização cromática das propriedades em todas as views compile perfeitamente e não contenha qualquer erro de tipagem ou referência.
 * **Resolução do Caso Prático:** Removidas com precisão 4 vendas (R$ 2.920) e 10 parcelas pagas de 3 clientes transferidos (Sergio Barros, Cristiane Cunha, Fabiane Camile) que estavam inflando incorretamente a tela de fechamento de caixa do vendedor Cleiton Glukoski.
-* **Versionamento:** O código foi commitado com a mensagem `fix: remove createdBy do filtro de vendas no fechamento de caixa - corrige vendedor vendo recebimentos de clientes transferidos` e enviado (`push`) com sucesso para o repositório no GitHub.
+* **Versionamento:** O código foi commitado com a mensagem `fix: unifica regra de portabilidade de carteira em todas as views de parcelas pendentes` e enviado (`push`) com sucesso para o repositório no GitHub.

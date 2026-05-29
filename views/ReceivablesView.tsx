@@ -41,7 +41,7 @@ const ReceivablesView: React.FC<ReceivablesViewProps> = ({
             if (!sale || sale.status === OrderStatus.CANCELLED) return false;
             if (userRole === 'gerente') return true;
             const customer = customers.find(c => c.id === sale.customerId);
-            return sale.sellerId === userId || customer?.createdBy === userId;
+            return customer?.createdBy ? customer.createdBy === userId : sale.sellerId === userId;
         });
     }, [installments, sales, userRole, userId]);
 
