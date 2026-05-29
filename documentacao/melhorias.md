@@ -82,3 +82,27 @@ Este arquivo serve para documentar de forma detalhada todas as atualizações de
 * **Verificação Estática:** Executada com sucesso a compilação do bundle de produção com `npm run build` para validar a ausência de erros de referência ou tipagem.
 * **Versionamento:** O código foi commitado com a mensagem `fix: unifica regra de portabilidade de carteira em todas as views de parcelas pendentes` e enviado (`push`) com sucesso para o repositório no GitHub.
 
+---
+
+### 4. Correção de Parcelas Históricas Consolidadas (Fantasmas) no Fechamento de Caixa do Vendedor
+
+* **Data e Horário:** 29/05/2026 às 20:38 (Horário Local)
+* **Responsável Técnico:** Assistente de IA
+* **Objetivo:** Resolver o problema reportado onde o vendedor Cleiton Glukoski continuava visualizando parcelas já pagas e resolvidas no passado (como da cliente Cleoni Rodrigues) em sua tela de Fechamento de Caixa, mesmo não tendo sido ele o recebedor recente ou as parcelas já estarem consolidadas.
+
+#### 🛠️ Implementações Técnicas Efetuadas:
+
+1. **Identificação da Causa Raiz:**
+   * No arquivo [App.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/compradomesnasuaporta/App.tsx), a chamada à função de leitura `fetchClosedPaymentIds()` (que mapeia os IDs de todos os pagamentos e vendas já encerrados e aprovados pela gerência para uso como filtro anti-duplicidade na propriedade `allClosedIds`) estava restrita apenas a usuários com perfil de **Gerente** (`isManager`).
+   * Como resultado, para qualquer **Vendedor** comum (`isManager === false`), a lista `allClosedIds` permanecia vazia. Sem esse filtro de barreira de dados no frontend, o fechamento de caixa do vendedor tentava carregar **todas as parcelas pagas da história** que estivessem associadas ao ID da sua venda original (uma vez que o banco não possuía o campo `received_by` preenchido de forma retroativa em migrações antigas), resultando na exibição de parcelas indevidas de clientes como Cleoni Rodrigues.
+
+2. **Liberação do Filtro de Segurança para Vendedores:**
+   * Removemos a restrição de perfil no gatilho de leitura de IDs consolidados na chamada paralela do React no [App.tsx](file:///c:/Users/i5/Downloads/Cesta%20Basica%20na%20sua%20Casa/compradomesnasuaporta/App.tsx#L330).
+   * Agora, as credenciais de qualquer vendedor ativam normalmente a consulta otimizada à RPC `get_closed_payment_ids`, gerando a lista de bloqueio de transações históricas perfeitamente populada para todos os usuários.
+
+#### 📊 Validação de Engenharia:
+* **Resolução do Caso Real:** Ao ativar o carregamento de fechamentos passados para vendedores, as 6 parcelas pagas e já consolidadas da cliente Cleoni Rodrigues (que haviam sido fechadas em caixas anteriores pelo Cleiton e pelo Lucas Feitosa) foram identificadas e bloqueadas com sucesso, sumindo por completo de qualquer exibição pendente de caixa para o Cleiton Glukoski.
+* **Validação de Compilação:** Rodamos o script de empacotamento `npm run build` para atestar a estabilidade estrutural do código.
+* **Versionamento:** O código foi commitado com a mensagem `fix: permite que vendedores carreguem IDs de pagamentos consolidados para filtrar caixas passados` e enviado (`push`) com sucesso para o GitHub.
+
+

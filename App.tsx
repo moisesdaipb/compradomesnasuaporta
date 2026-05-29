@@ -327,7 +327,7 @@ const App: React.FC = () => {
         (isManager ? fetchSupplies() : Promise.resolve([])).catch(err => { console.error('fetchSupplies failed:', err); return []; }),
         (isManager ? fetchSupplyEntries() : Promise.resolve([])).catch(err => { console.error('fetchSupplyEntries failed:', err); return []; }),
         (isManager ? fetchSuppliers() : Promise.resolve([])).catch(err => { console.error('fetchSuppliers failed:', err); return []; }),
-        (isManager ? fetchClosedPaymentIds() : Promise.resolve({ salesIds: [], installmentIds: [] })).catch(err => { console.error('fetchClosedPaymentIds failed:', err); return { salesIds: [], installmentIds: [] }; }),
+        fetchClosedPaymentIds().catch(err => { console.error('fetchClosedPaymentIds failed:', err); return { salesIds: [], installmentIds: [] }; }),
       ]);
 
       // If aborted while fetching, don't update state
